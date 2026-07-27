@@ -1,0 +1,39 @@
+# Home Assistant.
+#
+#   hlab stack deploy media-1 --file examples/stacks/homeassistant.yaml --apply
+#
+# Put it on a machine with an SSD. Home Assistant's recorder writes to a
+# database continuously, which is the workload that wears an SD card out — the
+# same reason you would not put a database on one.
+name: homeassistant
+
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+
+    # Host networking is not laziness here. Home Assistant finds local devices
+    # with mDNS and SSDP, which are broadcast protocols that do not cross a
+    # bridge network — on a bridge, local device discovery simply finds
+    # nothing and the failure looks like the integration being broken.
+    network_mode: host
+
+    # Deliberately NOT privileged, and no /run/dbus mount. Both appear in the
+    # upstream example and both are only needed for host hardware: Bluetooth,
+    # Z-Wave or Zigbee dongles. Granting them for integrations that speak over
+    # the network is a large privilege for nothing. Add them when you add the
+    # hardware that needs them, not before.
+    volumes:
+      - ./config:/config
+      # Read-only, and only so the container agrees with the host about what
+      # time it is; the recorder timestamps everything.
+      - /etc/localtime:/etc/localtime:ro
+
+    environment:
+      TZ: Etc/UTC
+
+    # Home Assistant listens on 8123. It is reached through the reverse proxy
+    # by name, but the port stays open on the host so the machine is still
+    # usable if the proxy is down — which is when you are most likely to want
+    # to look at something.

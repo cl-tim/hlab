@@ -38,6 +38,13 @@ http://dns.example {
 	reverse_proxy host.docker.internal:5380
 }
 
+# --- home automation ------------------------------------------------------
+# Running on a different machine to this proxy, so it is reached by name
+# across the network rather than by a Docker service name.
+http://hass.example {
+	reverse_proxy media-1.example:8123
+}
+
 # --- anything else --------------------------------------------------------
 # A bare address, or a name with no site of its own, lands on the dashboard.
 # Named sites above are matched first, so this only catches what is left.

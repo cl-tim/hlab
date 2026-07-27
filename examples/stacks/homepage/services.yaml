@@ -147,3 +147,12 @@
         icon: mdi-cctv
         description: no local API, reachability only
         ping: camera-hub.example
+
+- Home automation:
+    # Runs on the media server, so its state comes from siteMonitor rather than
+    # container status: Homepage reads one Docker socket and it is not that one.
+    - Home Assistant:
+        icon: home-assistant.png
+        href: http://hass.example/
+        description: device automation and local control
+        siteMonitor: http://hass.example/

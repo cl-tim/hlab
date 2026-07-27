@@ -20,6 +20,9 @@ layout:
   Storage:
     style: row
     columns: 3
+  Home automation:
+    style: row
+    columns: 2
   Cameras:
     style: row
     columns: 2
