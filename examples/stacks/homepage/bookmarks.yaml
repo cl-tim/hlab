@@ -1,0 +1,15 @@
+- Admin:
+    - Technitium primary:
+        - abbr: DNS
+          href: http://dns.example/
+    - Technitium secondary:
+        - abbr: DNS
+          href: http://dns-2.example:5380/
+    - Router:
+        - abbr: DT
+          href: http://198.51.100.1/
+
+- Source:
+    - homelab-cli:
+        - abbr: HL
+          href: https://github.com/cl-tim/homelab-cli

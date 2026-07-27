@@ -1,0 +1,24 @@
+- resources:
+    label: this machine
+    cpu: true
+    memory: true
+    disk: /
+
+- search:
+    provider: duckduckgo
+    target: _blank
+
+# No API key needed. Put your own coordinates and timezone here.
+- openmeteo:
+    label: Home
+    latitude: 0.0
+    longitude: 0.0
+    timezone: Etc/UTC
+    units: metric
+    cache: 5
+
+- datetime:
+    text_size: xl
+    format:
+      timeStyle: short
+      dateStyle: long

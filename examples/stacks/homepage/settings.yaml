@@ -1,0 +1,16 @@
+# Homepage appearance. Groups appear in the order given here.
+title: Homelab
+headerStyle: boxed
+theme: dark
+color: slate
+
+layout:
+  Infrastructure:
+    style: row
+    columns: 4
+  Printing:
+    style: row
+    columns: 3
+  Media:
+    style: row
+    columns: 3

@@ -1,0 +1,54 @@
+# Example hlab inventory.
+#
+# Copy to ./homelab.yaml (project-local) or to the user config path shown by
+# `hlab config path`, then edit to describe your fleet.
+
+defaults:
+  # Inherited by every host that does not set its own value.
+  user: root
+  port: 22
+  # identityFile: ~/.ssh/id_ed25519
+  # knownHostsFile: ~/.ssh/known_hosts     # host keys are verified against this
+  connectTimeout: 10s
+  concurrency: 10                          # hosts acted on in parallel
+
+hosts:
+  - name: nas-01
+    address: 192.0.2.10
+    tags: [storage, debian, critical]
+    description: TrueNAS / ZFS pool
+
+  - name: docker-01
+    address: 192.0.2.20
+    user: youruser
+    identityFile: ~/.ssh/id_ed25519
+    tags: [docker, debian]
+    description: Primary container host
+
+  - name: docker-02
+    address: 192.0.2.21
+    user: youruser
+    tags: [docker, debian]
+    description: Secondary container host
+
+  - name: pi-dns
+    address: 192.0.2.30
+    user: pi
+    tags: [dns, raspbian, critical]
+    description: Pi-hole + unbound
+
+  - name: backup-01
+    address: 192.0.2.40
+    port: 2222
+    tags: [storage, debian]
+    description: Offsite-sync staging box
+
+groups:
+  compute:
+    - docker-01
+    - docker-02
+  storage:
+    - nas-01
+    - backup-01
+  edge:
+    - pi-dns

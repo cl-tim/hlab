@@ -1,0 +1,28 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - bodyclose
+    - gosec
+    - misspell
+    - revive
+    - unconvert
+    - errorlint
+
+  exclusions:
+    rules:
+      # Tests exercise failure paths and use throwaway keys; the strictness
+      # that matters in the binary is noise here.
+      - path: _test\.go$
+        linters:
+          - errcheck
+          - gosec
+
+formatters:
+  enable:
+    - gofmt

@@ -1,0 +1,52 @@
+# Homepage — https://gethomepage.dev
+#
+#   hlab stack deploy apps-1 --file examples/stacks/homepage/homepage.yaml \
+#       --with examples/stacks/homepage/settings.yaml \
+#       --with examples/stacks/homepage/services.yaml \
+#       --with examples/stacks/homepage/widgets.yaml \
+#       --with examples/stacks/homepage/bookmarks.yaml \
+#       --with examples/stacks/homepage/docker.yaml --apply
+#
+# Homepage is configured entirely by files, so the whole dashboard travels with
+# the stack rather than being clicked together on the machine. Change a file
+# here, redeploy, and the change is on the machine — nothing is edited in place.
+services:
+  homepage:
+    image: ghcr.io/gethomepage/homepage:latest
+    container_name: homepage
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Mandatory since v1.0. Homepage rejects any request whose Host header is
+      # not listed here, so a name served through a reverse proxy has to appear
+      # or every page answers with a host validation error rather than content.
+      HOMEPAGE_ALLOWED_HOSTS: homepage.example,198.51.100.4:3000,localhost:3000
+    # API tokens live here, not in the config files, because those are in git.
+    # Written on the machine by hlab, never committed.
+    env_file:
+      - ./homepage.env
+    volumes:
+      # A writable volume for what Homepage owns — logs, and the defaults it
+      # generates — with the reviewed config bound read-only on top of it.
+      # Docker applies the deeper paths after the volume, so the files win.
+      - homepage_config:/app/config
+      - ./settings.yaml:/app/config/settings.yaml:ro
+      - ./services.yaml:/app/config/services.yaml:ro
+      - ./widgets.yaml:/app/config/widgets.yaml:ro
+      - ./bookmarks.yaml:/app/config/bookmarks.yaml:ro
+      - ./docker.yaml:/app/config/docker.yaml:ro
+      # Read-only: Homepage only needs to list containers and read their state.
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Joined so Caddy can reach it as homepage:3000 rather than through a host
+    # port that may not stay published.
+    networks:
+      - apps
+
+networks:
+  apps:
+    external: true
+    name: apps_default
+
+volumes:
+  homepage_config:

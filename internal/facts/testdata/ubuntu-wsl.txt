@@ -1,0 +1,92 @@
+##HLAB#hostname#
+Office
+##HLAB#os-release#
+PRETTY_NAME="Ubuntu 24.04.4 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.4 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+##HLAB#kernel#
+6.6.87.2-microsoft-standard-WSL2
+##HLAB#arch#
+x86_64
+##HLAB#uptime#
+102.46 1598.46
+##HLAB#cpu#
+16
+##HLAB#memory#
+MemTotal:       16279732 kB
+MemAvailable:   15650328 kB
+##HLAB#load#
+0.18 0.09 0.03 1/415 661
+##HLAB#disk#
+Filesystem     Type          1024-blocks      Used Available Capacity Mounted on
+none           overlay           8139864         0   8139864       0% /usr/lib/modules/6.6.87.2-microsoft-standard-WSL2
+none           tmpfs             8139864         4   8139860       1% /mnt/wsl
+drivers        9p              999232508 875311176 123921332      88% /usr/lib/wsl/drivers
+/dev/sdd       ext4           1055762868  10591880 991467516       2% /
+none           tmpfs             8139864        76   8139788       1% /mnt/wslg
+none           overlay           8139864         0   8139864       0% /usr/lib/wsl/lib
+rootfs         rootfs            8134852      2664   8132188       1% /init
+none           tmpfs             8139864       864   8139000       1% /run
+none           tmpfs             8139864         0   8139864       0% /run/lock
+none           tmpfs             8139864         0   8139864       0% /run/shm
+none           overlay           8139864        76   8139788       1% /mnt/wslg/versions.txt
+none           overlay           8139864        76   8139788       1% /mnt/wslg/doc
+C:\            9p              999232508 875311176 123921332      88% /mnt/c
+snapfuse       fuse.snapfuse       65408     65408         0     100% /snap/core20/2866
+snapfuse       fuse.snapfuse       68480     68480         0     100% /snap/core24/1055
+snapfuse       fuse.snapfuse       62848     62848         0     100% /snap/aws-cli/2312
+snapfuse       fuse.snapfuse       75776     75776         0     100% /snap/core22/2411
+snapfuse       fuse.snapfuse       68480     68480         0     100% /snap/core24/1643
+snapfuse       fuse.snapfuse       46464     46464         0     100% /snap/doctl/2474
+snapfuse       fuse.snapfuse       46592     46592         0     100% /snap/doctl/2499
+snapfuse       fuse.snapfuse       42368     42368         0     100% /snap/gh/640
+snapfuse       fuse.snapfuse       21632     21632         0     100% /snap/helm/532
+snapfuse       fuse.snapfuse       13952     13952         0     100% /snap/kubectl/3826
+snapfuse       fuse.snapfuse       13952     13952         0     100% /snap/kubectl/3833
+snapfuse       fuse.snapfuse       50560     50560         0     100% /snap/snapd/26865
+snapfuse       fuse.snapfuse       51328     51328         0     100% /snap/snapd/27591
+tmpfs          tmpfs             8139864        16   8139848       1% /run/user/1000
+##HLAB#init#
+systemd
+##HLAB#services#
+apache2.service             loaded active running The Apache HTTP Server
+console-getty.service       loaded active running Console Getty
+cron.service                loaded active running Regular background program processing daemon
+dbus.service                loaded active running D-Bus System Message Bus
+getty@tty1.service          loaded active running Getty on tty1
+rsyslog.service             loaded active running System Logging Service
+snapd.service               loaded active running Snap Daemon
+systemd-journald.service    loaded active running Journal Service
+systemd-logind.service      loaded active running User Login Management
+systemd-resolved.service    loaded active running Network Name Resolution
+systemd-timedated.service   loaded active running Time & Date Service
+systemd-timesyncd.service   loaded active running Network Time Synchronization
+systemd-udevd.service       loaded active running Rule-based Manager for Device Events and Files
+unattended-upgrades.service loaded active running Unattended Upgrades Shutdown
+user@1000.service           loaded active running User Manager for UID 1000
+wsl-pro.service             loaded active running Bridge to Ubuntu Pro agent on Windows
+##HLAB#ports#
+LISTEN 0      4096       127.0.0.54:53 0.0.0.0:*
+LISTEN 0      1000   10.255.255.254:53 0.0.0.0:*
+LISTEN 0      4096    127.0.0.53%lo:53 0.0.0.0:*
+LISTEN 0      511                 *:80       *:*
+##HLAB#containers#
+
+The command 'docker' could not be found in this WSL 2 distro.
+We recommend to activate the WSL integration in Docker Desktop settings.
+
+For details about using Docker Desktop with WSL 2, visit:
+
+https://docs.docker.com/go/wsl2/
+
+##HLAB#end#

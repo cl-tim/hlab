@@ -1,0 +1,4 @@
+# The local Docker socket, mounted read-only. Services below reference this by
+# the name "local" to show container state next to their link.
+local:
+  socket: /var/run/docker.sock

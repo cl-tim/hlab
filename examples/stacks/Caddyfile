@@ -1,0 +1,46 @@
+# Caddy configuration for the homelab.
+#
+# Deployed with the compose file next to it:
+#
+#   hlab stack deploy apps-1 --file examples/stacks/caddy.yaml \
+#       --with examples/stacks/Caddyfile --apply
+#
+# Each name here needs an A record in Technitium pointing at the machine Caddy
+# runs on. Without that, nothing resolves and none of this is reachable.
+{
+	# Automatic HTTPS is off because these are internal names: no public CA
+	# can validate .lan, so Caddy would retry ACME forever and serve nothing.
+	#
+	# To use TLS internally, delete this line and add `tls internal` to each
+	# site below, publish 443 in the compose file, and install Caddy's root
+	# certificate on every client that should trust it — it is written to
+	# /data/caddy/pki/authorities/local/root.crt inside the container.
+	auto_https off
+}
+
+# --- printer control ------------------------------------------------------
+# Reached on the apps network by service name. mainsail listens on 8080
+# inside the container; the host-port publish it used to have is what made
+# this proxy necessary in the first place.
+http://mainsail.example {
+	reverse_proxy mainsail:8080
+}
+
+# --- dashboard ------------------------------------------------------------
+http://homepage.example {
+	reverse_proxy homepage:3000
+}
+
+# --- DNS console ----------------------------------------------------------
+# Technitium runs with host networking, so it is not on any bridge network
+# and has to be reached through the host gateway.
+http://dns.example {
+	reverse_proxy host.docker.internal:5380
+}
+
+# --- anything else --------------------------------------------------------
+# A bare address, or a name with no site of its own, lands on the dashboard.
+# Named sites above are matched first, so this only catches what is left.
+:80 {
+	reverse_proxy homepage:3000
+}

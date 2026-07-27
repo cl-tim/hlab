@@ -1,0 +1,43 @@
+# Caddy — the one thing that owns ports 80 and 443 on a machine.
+#
+#   hlab stack deploy apps-1 --file examples/stacks/caddy.yaml \
+#       --with examples/stacks/Caddyfile --apply
+#
+# Every other web service stops publishing a host port and is reached through
+# Caddy by name instead. That is the point: several services want port 80, and
+# only one can have it.
+#
+# Caddy joins the existing compose networks so it can address containers by
+# their service name rather than by a host port that no longer exists. These
+# are declared external, so this stack neither creates nor removes them —
+# `docker network ls` shows the real names, and they are the project directory
+# name plus the network name.
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      # 443 is deliberately not published. Caddy's automatic HTTPS is off
+      # below, because these names are internal and cannot be validated by a
+      # public CA. See the Caddyfile for how to turn on the local CA instead.
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    # Reaches services that use host networking — Technitium's console is on
+    # the host itself, not on a bridge. Better than hardcoding the machine's
+    # address, which would need editing every time a machine moves.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - apps
+
+networks:
+  apps:
+    external: true
+    name: apps_default
+volumes:
+  caddy_data:
+  caddy_config:

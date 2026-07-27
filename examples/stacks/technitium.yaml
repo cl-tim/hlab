@@ -1,0 +1,46 @@
+# Technitium DNS Server.
+#
+# Deploy the secondary first, on a machine that is not currently serving DNS,
+# so it is available as a fallback before the existing resolver is taken down.
+#
+#   hlab stack deploy apps-1 --file examples/stacks/technitium.yaml --apply
+#
+# Ports:
+#   53      DNS. The one that matters, and the one likely to clash with an
+#           existing resolver — systemd-resolved holds it on many systems.
+#   5380    web console (HTTP). Not 80, so it does not fight a reverse proxy.
+#   53443   web console (HTTPS).
+#   67      DHCP. Commented out: only ONE instance should serve DHCP, because
+#           Technitium has no DHCP failover protocol and two servers on one
+#           subnet will both answer and hand out conflicting leases.
+services:
+  technitium:
+    image: technitium/dns-server:latest
+    container_name: technitium
+    hostname: technitium
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      # Set this on first run, then manage the rest through the console.
+      DNS_SERVER_DOMAIN: technitium.example
+      DNS_SERVER_ADMIN_PASSWORD_FILE: /etc/dns/admin-password
+      # Upstream resolvers used until internal zones are configured.
+      DNS_SERVER_FORWARDERS: 1.1.1.1, 9.9.9.9
+      DNS_SERVER_FORWARDER_PROTOCOL: Tls
+    volumes:
+      - ./config:/etc/dns
+    # host networking is used so DHCP relay and DNS see real client addresses.
+    # If you prefer bridged networking, publish these instead:
+    #   ports:
+    #     - "53:53/udp"
+    #     - "53:53/tcp"
+    #     - "5380:5380/tcp"
+    #     - "53443:53443/tcp"
+    #     - "67:67/udp"   # primary/DHCP instance only
+    #
+    # No sysctls here: net.ipv4.ip_unprivileged_port_start is namespaced, and
+    # Docker refuses to set it when the container shares the host's network
+    # namespace ("not allowed in host network namespace"). It is not needed
+    # either — the container runs as root, so binding 53 requires nothing
+    # extra. Add it back only if you switch to bridged networking *and* run
+    # the image as a non-root user.

@@ -1,0 +1,111 @@
+# Every href here has been checked against the running fleet rather than
+# guessed. `server`/`container` add live state from the Docker socket on
+# apps-1; `siteMonitor` and `ping` cover everything that runs elsewhere,
+# since Homepage only has one Docker socket to look at.
+#
+# Names are fully qualified on purpose. Technitium answers <host>.lan and not
+# the bare name, and this container gets Docker's ndots:0, which would try a
+# short name as absolute and never consult the search domain.
+- Infrastructure:
+    - Technitium (primary):
+        icon: technitium.png
+        href: http://dns.example/
+        description: DNS and DHCP - apps-1
+        server: local
+        container: technitium
+        showStats: true
+        widget:
+          type: technitium
+          # Addressed by IP, not by name: this is the thing that resolves
+          # names, so pointing at it by one is circular when it matters.
+          url: http://198.51.100.4:5380
+          key: "{{HOMEPAGE_VAR_TECHNITIUM_PRIMARY_KEY}}"
+          range: LastDay
+
+    - Technitium (secondary):
+        icon: technitium.png
+        href: http://dns-2.example:5380/
+        description: DNS secondary, zone transfer from primary - dns-2
+        siteMonitor: http://198.51.100.3:5380/
+        widget:
+          type: technitium
+          url: http://198.51.100.3:5380
+          key: "{{HOMEPAGE_VAR_TECHNITIUM_SECONDARY_KEY}}"
+          range: LastDay
+
+    - Caddy:
+        icon: caddy.png
+        href: http://homepage.example/
+        description: reverse proxy - owns port 80 on apps-1
+        server: local
+        container: caddy
+        showStats: true
+
+    - Gateway:
+        icon: mdi-router-network
+        href: http://198.51.100.1/
+        description: your router - routing and WAN
+        ping: 198.51.100.1
+
+- Printing:
+    - Mainsail:
+        icon: mainsail.png
+        href: http://mainsail.example/
+        description: printer UI for printer-1 and printer-2
+        server: local
+        container: mainsail
+        showStats: true
+
+    - printer-1:
+        icon: mdi-printer-3d
+        href: http://mainsail.example/
+        description: 3D printer - Moonraker on printer-1.example
+        siteMonitor: http://printer-1.example:7125/server/info
+
+    - printer-2:
+        icon: mdi-printer-3d
+        href: http://mainsail.example/
+        description: 3D printer - Moonraker on printer-2.example
+        siteMonitor: http://printer-2.example:7125/server/info
+
+    - printer-1 camera:
+        icon: mdi-camera
+        href: http://cam-1.example:8080/
+        description: crowsnest stream - cam-1
+        siteMonitor: http://cam-1.example:8080/
+
+    - printer-2 camera:
+        icon: mdi-camera
+        href: http://cam-2.example:8080/
+        description: crowsnest stream - cam-2
+        siteMonitor: http://cam-2.example:8080/
+
+    - OctoEverywhere (printer-1):
+        icon: octoeverywhere.png
+        description: remote access companion for printer-1
+        server: local
+        container: oe-printer-1
+        showStats: true
+
+    - OctoEverywhere (printer-2):
+        icon: octoeverywhere.png
+        description: remote access companion for printer-2
+        server: local
+        container: oe-printer-2
+        showStats: true
+
+- Media:
+    # These run on the machine called "docker" (198.51.100.20). Homepage reads
+    # only apps-1's socket, so their state comes from siteMonitor rather
+    # than from container status.
+    - Plex:
+        icon: plex.png
+        href: http://media-1.example:32400/web
+        description: media server - media-1.example
+        siteMonitor: http://media-1.example:32400/web/index.html
+
+    - Stremio:
+        icon: stremio.png
+        href: http://media-1.example:8080/
+        description: streaming front end - media-1.example
+        siteMonitor: http://media-1.example:8080/
