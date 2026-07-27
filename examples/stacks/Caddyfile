@@ -42,5 +42,12 @@ http://dns.example {
 # A bare address, or a name with no site of its own, lands on the dashboard.
 # Named sites above are matched first, so this only catches what is left.
 :80 {
-	reverse_proxy homepage:3000
+	# The Host header is rewritten because Homepage validates it and rejects
+	# anything not in HOMEPAGE_ALLOWED_HOSTS. Without this the catch-all works
+	# for the page but fails every request the page then makes, whenever
+	# somebody arrives on a name this proxy was not told about — a stale
+	# bookmark for a service that has been replaced, for instance.
+	reverse_proxy homepage:3000 {
+		header_up Host homepage.example
+	}
 }

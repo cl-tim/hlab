@@ -8,9 +8,15 @@ layout:
   Infrastructure:
     style: row
     columns: 4
+  Machines:
+    style: row
+    columns: 3
   Printing:
     style: row
     columns: 3
   Media:
+    style: row
+    columns: 3
+  Storage:
     style: row
     columns: 3

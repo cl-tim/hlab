@@ -47,6 +47,35 @@
         description: your router - routing and WAN
         ping: 198.51.100.1
 
+- Machines:
+    # Cockpit serves HTTPS with a self-signed certificate, so these are checked
+    # by ping rather than siteMonitor: an unverifiable certificate would show a
+    # working machine as an error, which is how a dashboard stops being read.
+    - apps-1:
+        icon: mdi-server
+        href: http://homepage.example/
+        description: applications, DNS and DHCP
+        ping: apps-1.example
+
+    - dns-2:
+        icon: mdi-cog
+        href: https://dns-2.example:9090/
+        description: secondary DNS - Cockpit
+        ping: dns-2.example
+
+- Storage:
+    - nas-1:
+        icon: synology.png
+        href: http://nas-1.example:5000/
+        description: holds the media library
+        siteMonitor: http://nas-1.example:5000/
+
+    - nas-2:
+        icon: synology.png
+        href: http://nas-2.example:5000/
+        description: backup
+        siteMonitor: http://nas-2.example:5000/
+
 - Printing:
     - Mainsail:
         icon: mainsail.png
