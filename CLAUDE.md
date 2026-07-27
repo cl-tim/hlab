@@ -525,6 +525,52 @@ signal, but it is not necessarily a current one.
 A stack running fewer services than its compose file declares is a failure
 `docker ps` cannot show, because the thing to notice is the one that is absent.
 
+## Secrets
+
+A credential lives beside the stack that uses it, at 0600, referenced from the
+compose file rather than embedded in it. Compose files are reviewed, committed
+and shared; the things they authenticate with must not be.
+
+`secret gen` creates the value **on the target machine**. That is the whole
+point — a secret that never crosses the network cannot be taken from it,
+logged by an intermediate shell, or left in a terminal's scrollback. `set`
+reads an existing value without echo and sends it as the command's *input*, so
+it reaches neither shell history nor the machine's process list. `show` is
+separate from `list` because seeing a secret should be deliberate.
+
+Two things the listing gets wrong if written naively. It must run under sudo:
+stack directories are 0750 and root-owned, so an unprivileged glob finds
+nothing and reports a machine full of credentials as having none. And "every
+file that is not a compose file" is useless — Technitium alone keeps hundreds
+of blocklist and statistics files there. A secret is a file whose *mode* says
+somebody restricted it, or whose *name* says what it holds; the two together
+also catch a credential that was meant to be private and is not.
+
+## DNS sync
+
+`dns sync` publishes the inventory into Technitium. Every API call runs **on
+the DNS server itself**, against its own loopback, reading the admin password
+already stored beside that stack. hlab therefore holds no Technitium
+credential, stores nothing on the workstation, and no token crosses the
+network.
+
+Three rules keep it safe to re-run:
+
+- **Nothing is ever deleted.** The zone is shared: DHCP registers every device
+  on the network into it, so an unrecognised name is far more likely to be
+  somebody's phone than a mistake. Extras are reported and left alone.
+- **Unmanaged machines are excluded.** A scan saw them once, nobody has
+  verified them, and hlab cannot tell when they go away.
+- **Reservations are filtered to the DHCP scope.** An address outside the pool
+  can never be offered, so pinning it is noise — and statically configured
+  machines live outside the pool by design. Existing reservations are read
+  first, or every run claims work and gets ignored.
+
+The zone listing is parsed as JSON in Go, not with sed on the machine.
+Technitium nests the address inside an `rData` object, so any line-oriented
+extraction separates a record's name from its value, silently finds nothing,
+and reads as an empty zone — which would recreate every record on every run.
+
 ## Security posture
 
 Host keys are verified against `known_hosts` by default; `--insecure-host-key`
