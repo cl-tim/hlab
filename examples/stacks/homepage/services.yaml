@@ -138,3 +138,12 @@
         href: http://media-1.example:8080/
         description: streaming front end - media-1.example
         siteMonitor: http://media-1.example:8080/
+
+- Cameras:
+    # A cloud-only camera system exposes no local API, so reachability is the
+    # only thing worth asserting — and it is the failure that matters, since a
+    # hub that is off the network is not recording.
+    - Camera hub:
+        icon: mdi-cctv
+        description: no local API, reachability only
+        ping: camera-hub.example
