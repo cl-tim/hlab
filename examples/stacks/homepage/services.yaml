@@ -60,13 +60,13 @@
         icon: mdi-printer-3d
         href: http://mainsail.example/
         description: 3D printer - Moonraker on printer-1.example
-        siteMonitor: http://printer-1.example:7125/server/info
+        ping: printer-1.example
 
     - printer-2:
         icon: mdi-printer-3d
         href: http://mainsail.example/
         description: 3D printer - Moonraker on printer-2.example
-        siteMonitor: http://printer-2.example:7125/server/info
+        ping: printer-2.example
 
     - printer-1 camera:
         icon: mdi-camera

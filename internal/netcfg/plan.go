@@ -196,7 +196,7 @@ func skip(p Plan, reason string) Plan {
 // supportedManager reports whether netcfg can write this manager's config.
 func supportedManager(name string) bool {
 	switch name {
-	case "netplan", "NetworkManager", "dhcpcd":
+	case "netplan", "NetworkManager", "systemd-networkd", "dhcpcd":
 		return true
 	default:
 		return false

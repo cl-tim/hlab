@@ -166,3 +166,54 @@ func TestAdoptRefusesToMoveAHomeDirectory(t *testing.T) {
 		t.Errorf("BuildAdoptScript rejected a project directory: %v", err)
 	}
 }
+
+// A rename must state the new name in the file. Left to the directory, the
+// project's identity changes again the next time anything moves.
+func TestRenameRequiresTheFileToDeclareTheNewName(t *testing.T) {
+	if _, err := BuildRenameScript("old", "new", []byte("name: old\nservices: {}\n")); err == nil {
+		t.Error("BuildRenameScript accepted a compose file still declaring the old name")
+	}
+	if _, err := BuildRenameScript("old", "new", []byte("name: new\nservices: {}\n")); err != nil {
+		t.Errorf("BuildRenameScript rejected a correct rename: %v", err)
+	}
+	if _, err := BuildRenameScript("same", "same", []byte("name: same\n")); err == nil {
+		t.Error("BuildRenameScript accepted a rename to the same name")
+	}
+}
+
+// A rename that fails halfway leaves a stack that exists under neither name.
+func TestRenamePutsTheStackBackOnFailure(t *testing.T) {
+	script, err := BuildRenameScript("old", "new", []byte("name: new\nservices: {}\n"))
+	if err != nil {
+		t.Fatalf("BuildRenameScript: %v", err)
+	}
+	for _, want := range []string{`mv "$NEW" "$OLD"`, MarkerRolled, "docker compose up -d"} {
+		if !strings.Contains(script, want) {
+			t.Errorf("rename rollback is missing %q", want)
+		}
+	}
+	if !strings.Contains(script, `if [ -e "$NEW" ]`) {
+		t.Error("the rename does not check the new name is free first")
+	}
+}
+
+// Named volumes are prefixed with the project name, so a rename leaves them
+// behind and the stack starts against empty ones — which looks like success.
+func TestNamedVolumesAreDetected(t *testing.T) {
+	compose := []byte("name: x\nservices:\n  a:\n    volumes:\n      - data:/d\nvolumes:\n  data:\n  cache:\n")
+	got, err := NamedVolumes(compose)
+	if err != nil {
+		t.Fatalf("NamedVolumes: %v", err)
+	}
+	if strings.Join(got, ",") != "cache,data" {
+		t.Errorf("NamedVolumes = %v, want [cache data]", got)
+	}
+
+	none, err := NamedVolumes([]byte("name: x\nservices:\n  a:\n    volumes:\n      - ./d:/d\n"))
+	if err != nil {
+		t.Fatalf("NamedVolumes: %v", err)
+	}
+	if len(none) != 0 {
+		t.Errorf("NamedVolumes = %v, want none for bind mounts only", none)
+	}
+}

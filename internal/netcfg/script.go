@@ -40,6 +40,9 @@ func netplanYAML(iface, address, gateway string, dns, search []string) string {
 	fmt.Fprintf(&b, "        - to: default\n          via: %s\n", gateway)
 	b.WriteString("      nameservers:\n")
 	fmt.Fprintf(&b, "        addresses: [%s]\n", strings.Join(dns, ", "))
+	if len(search) > 0 {
+		fmt.Fprintf(&b, "        search: [%s]\n", strings.Join(search, ", "))
+	}
 	return b.String()
 }
 
@@ -51,7 +54,33 @@ func dhcpcdConf(iface, address, gateway string, dns, search []string) string {
 	fmt.Fprintf(&b, "static ip_address=%s\n", address)
 	fmt.Fprintf(&b, "static routers=%s\n", gateway)
 	fmt.Fprintf(&b, "static domain_name_servers=%s\n", strings.Join(dns, " "))
+	if len(search) > 0 {
+		fmt.Fprintf(&b, "static domain_search=%s\n", strings.Join(search, " "))
+	}
 	b.WriteString("# --- end hlab static configuration ---\n")
+	return b.String()
+}
+
+// networkdUnit renders a systemd-networkd unit pinning one interface.
+//
+// The 05- prefix is load-bearing. systemd-networkd applies the first .network
+// file whose [Match] fits, in lexical order across every directory it reads —
+// and a machine like this one already has a generated 10-netplan-*.network in
+// /run for the same interface. Sorting ahead of it is what makes this file the
+// one that takes effect.
+func networkdUnit(iface, address, gateway string, dns, search []string) string {
+	var b strings.Builder
+	b.WriteString("# Written by hlab. Edits here are replaced on the next change.\n")
+	fmt.Fprintf(&b, "[Match]\nName=%s\n\n", iface)
+	b.WriteString("[Network]\n")
+	fmt.Fprintf(&b, "Address=%s\n", address)
+	fmt.Fprintf(&b, "Gateway=%s\n", gateway)
+	for _, server := range dns {
+		fmt.Fprintf(&b, "DNS=%s\n", server)
+	}
+	if len(search) > 0 {
+		fmt.Fprintf(&b, "Domains=%s\n", strings.Join(search, " "))
+	}
 	return b.String()
 }
 
@@ -88,6 +117,10 @@ if [ "$MANAGER" = NetworkManager ] && ! command -v nmcli >/dev/null 2>&1; then
   echo 'hlab:error nmcli is not installed here; the recorded manager is wrong. Run hlab sync first' >&2
   exit 21
 fi
+if [ "$MANAGER" = systemd-networkd ] && ! command -v networkctl >/dev/null 2>&1; then
+  echo 'hlab:error networkctl is not installed here; the recorded manager is wrong. Run hlab sync first' >&2
+  exit 24
+fi
 if [ "$MANAGER" = dhcpcd ] && [ ! -f /etc/dhcpcd.conf ]; then
   echo 'hlab:error /etc/dhcpcd.conf is missing; the recorded manager is wrong. Run hlab sync first' >&2
   exit 22
@@ -106,9 +139,12 @@ fi
 # The revert restores whatever backups it finds, so only one manager's may be
 # left lying about: a machine that was once handled as netplan and is now
 # handled through NM would otherwise have both put back.
-rm -rf "$BACKUP_DIR/netplan" "$BACKUP_DIR/nm" "$BACKUP_DIR/dhcpcd.conf.bak"
+rm -rf "$BACKUP_DIR/netplan" "$BACKUP_DIR/nm" "$BACKUP_DIR/networkd" "$BACKUP_DIR/dhcpcd.conf.bak"
 
-if [ "$MANAGER" = netplan ]; then
+if [ "$MANAGER" = systemd-networkd ]; then
+  mkdir -p "$BACKUP_DIR/networkd"
+  cp -a /etc/systemd/network/. "$BACKUP_DIR/networkd/" 2>/dev/null || true
+elif [ "$MANAGER" = netplan ]; then
   mkdir -p "$BACKUP_DIR/netplan"
   cp -a /etc/netplan/. "$BACKUP_DIR/netplan/" 2>/dev/null || true
 elif [ "$MANAGER" = NetworkManager ]; then
@@ -154,6 +190,11 @@ if [ -f "$BACKUP_DIR/nm/con" ]; then
     ipv4.dns "$(cat "$BACKUP_DIR/nm/dns")" >/dev/null 2>&1 || true
   nmcli connection up "$CON" >/dev/null 2>&1 || true
 fi
+if [ -d "$BACKUP_DIR/networkd" ]; then
+  rm -f /etc/systemd/network/*.network 2>/dev/null || true
+  cp -a "$BACKUP_DIR/networkd/." /etc/systemd/network/ 2>/dev/null || true
+  networkctl reload >/dev/null 2>&1 || systemctl restart systemd-networkd >/dev/null 2>&1 || true
+fi
 if [ -f "$BACKUP_DIR/dhcpcd.conf.bak" ]; then
   cp -a "$BACKUP_DIR/dhcpcd.conf.bak" /etc/dhcpcd.conf
   systemctl restart dhcpcd >/dev/null 2>&1 || service dhcpcd restart >/dev/null 2>&1 || true
@@ -172,6 +213,18 @@ if [ "$MANAGER" = netplan ]; then
   # A machine can carry several netplan files; the others may still say dhcp4
   # for this interface, so anything else mentioning it is moved aside.
   for f in /etc/netplan/*.yaml; do
+    [ "$f" = "$TARGET" ] && continue
+    [ -f "$f" ] || continue
+    if grep -q "$IFACE" "$f" 2>/dev/null; then
+      mv "$f" "$f.hlab-disabled"
+    fi
+  done
+elif [ "$MANAGER" = systemd-networkd ]; then
+  printf '%s' __PAYLOAD__ > "$TARGET"
+  chmod 0644 "$TARGET"
+  # Any other unit in /etc matching this interface would race ours for the
+  # link, so anything else naming it is moved aside.
+  for f in /etc/systemd/network/*.network; do
     [ "$f" = "$TARGET" ] && continue
     [ -f "$f" ] || continue
     if grep -q "$IFACE" "$f" 2>/dev/null; then
@@ -207,6 +260,8 @@ cat > "$BACKUP_DIR/activate.sh" <<ACTIVATE
 sleep 2
 if [ "$MANAGER" = netplan ]; then
   netplan apply
+elif [ "$MANAGER" = systemd-networkd ]; then
+  networkctl reload || systemctl restart systemd-networkd
 elif [ "$MANAGER" = NetworkManager ]; then
   nmcli connection up "$CON"
 else
@@ -234,6 +289,9 @@ func BuildStaticScript(p Plan) (string, error) {
 		// nmcli takes the settings as arguments, so no file is rendered.
 		payload = ""
 		target = ""
+	case "systemd-networkd":
+		payload = networkdUnit(p.Interface, p.Address, p.Gateway, p.DNS, p.Search)
+		target = "/etc/systemd/network/05-hlab-" + p.Interface + ".network"
 	case "dhcpcd":
 		payload = dhcpcdConf(p.Interface, p.Address, p.Gateway, p.DNS, p.Search)
 		target = "/etc/dhcpcd.conf"

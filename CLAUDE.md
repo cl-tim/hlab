@@ -472,6 +472,34 @@ exit non-zero and be useless to anything scheduled.
 management key means losing access to every enrolled machine, and it lives on
 the operator's workstation, not on the fleet.
 
+## systemd-networkd
+
+The unit hlab writes is named `05-hlab-<iface>.network`, and the prefix is
+load-bearing. systemd-networkd applies the **first** `.network` whose `[Match]`
+fits, in lexical order across every directory it reads — and a machine can
+already have a generated `10-netplan-*.network` in `/run` for the same
+interface. A file that does not sort ahead of that one is written, looks
+correct, and does nothing.
+
+Note that `/etc/netplan` existing does not mean netplan owns the machine.
+Armbian ships a netplan YAML with `renderer: networkd` and no netplan binary
+installed, which is why the collector requires `command -v netplan` before
+recording netplan as the manager.
+
+Every renderer must emit the search list. Go does not complain about an unused
+parameter, so `netplanYAML` and `dhcpcdConf` once accepted `search` and
+silently dropped it — indistinguishable from the feature working until a short
+name fails to resolve on a machine you did not test.
+`TestEveryRendererEmitsTheSearchDomain` covers all three.
+
+## Renaming a stack
+
+Compose derives network and volume names from the project name. Bind-mounted
+data travels with the directory, but a **named volume** is prefixed with the
+project and does not follow — the renamed stack starts against an empty one and
+looks healthy. `stack rename` therefore refuses when any are declared unless
+`--force` is passed.
+
 ## Security posture
 
 Host keys are verified against `known_hosts` by default; `--insecure-host-key`

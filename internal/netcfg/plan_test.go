@@ -385,3 +385,69 @@ func TestActivationIsDetachedFromTheSession(t *testing.T) {
 		}
 	}
 }
+
+// Every renderer must emit the search list. Go does not complain about an
+// unused parameter, so two of these accepted `search` and silently dropped it
+// — which looks exactly like the feature working until a short name fails to
+// resolve on a machine that is not the one you tested.
+func TestEveryRendererEmitsTheSearchDomain(t *testing.T) {
+	dns := []string{"198.51.100.4"}
+	search := []string{"lan"}
+
+	for name, got := range map[string]string{
+		"netplan":          netplanYAML("eth0", "198.51.100.5/24", "198.51.100.1", dns, search),
+		"dhcpcd":           dhcpcdConf("eth0", "198.51.100.5/24", "198.51.100.1", dns, search),
+		"systemd-networkd": networkdUnit("eth0", "198.51.100.5/24", "198.51.100.1", dns, search),
+	} {
+		if !strings.Contains(got, "lan") {
+			t.Errorf("%s renderer dropped the search domain:\n%s", name, got)
+		}
+		if !strings.Contains(got, "198.51.100.4") {
+			t.Errorf("%s renderer dropped the resolver:\n%s", name, got)
+		}
+	}
+}
+
+// systemd-networkd applies the first matching .network in lexical order across
+// every directory it reads. This machine already has a generated
+// 10-netplan-*.network in /run for the same interface, so a file that does not
+// sort ahead of it is written, looks right, and does nothing.
+func TestNetworkdUnitSortsAheadOfGeneratedFiles(t *testing.T) {
+	p := PlanStatic(host("printer-2", "198.51.100.225", "systemd-networkd",
+		iface("eth0", inventory.IfaceEthernet, "198.51.100.225/24", true, true)))
+	if p.Skipped {
+		t.Fatalf("systemd-networkd is not supported: %s", p.Reason)
+	}
+
+	script, err := BuildStaticScript(p)
+	if err != nil {
+		t.Fatalf("BuildStaticScript: %v", err)
+	}
+	if !strings.Contains(script, "/etc/systemd/network/05-hlab-eth0.network") {
+		t.Error("the unit is not named to sort ahead of the generated ones")
+	}
+	for _, want := range []string{"networkctl reload", "BACKUP_DIR/networkd", "command -v networkctl"} {
+		if !strings.Contains(script, want) {
+			t.Errorf("systemd-networkd script missing %q", want)
+		}
+	}
+	// Every manager's branch is present in the template behind a conditional,
+	// so what distinguishes them is the target that gets interpolated. That is
+	// the file this run will actually write.
+	if strings.Contains(script, "/etc/netplan/60-hlab") || strings.Contains(script, "TARGET='/etc/dhcpcd.conf'") {
+		t.Error("the systemd-networkd path targets another manager's file")
+	}
+}
+
+func TestNetworkdUnitShape(t *testing.T) {
+	got := networkdUnit("eth0", "198.51.100.225/24", "198.51.100.1", []string{"198.51.100.4", "198.51.100.3"}, []string{"lan"})
+	for _, want := range []string{
+		"[Match]", "Name=eth0", "[Network]",
+		"Address=198.51.100.225/24", "Gateway=198.51.100.1",
+		"DNS=198.51.100.4", "DNS=198.51.100.3", "Domains=lan",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("networkd unit missing %q:\n%s", want, got)
+		}
+	}
+}

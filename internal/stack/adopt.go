@@ -239,3 +239,87 @@ func isHomeDirectory(dir string) bool {
 	rest, ok := strings.CutPrefix(dir, "/home/")
 	return ok && rest != "" && !strings.Contains(rest, "/")
 }
+
+// renameTemplate moves a stack hlab already owns to a new name.
+//
+// A rename is a relocation of the definition only: the directory moves, the
+// compose file is rewritten to state the new name, and the stack is started
+// again. Bind-mounted data travels with the directory; named volumes would
+// not, which is why the caller refuses the rename when any are declared.
+const renameTemplate = `
+set -eu
+
+OLD=__OLD__
+NEW=__NEW__
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo '__M_NO_DOCKER__'
+  exit 0
+fi
+if [ ! -d "$OLD" ]; then
+  echo 'hlab:error the stack is not where hlab keeps it' >&2
+  exit 60
+fi
+if [ -e "$NEW" ]; then
+  echo 'hlab:error a stack of the new name already exists here' >&2
+  exit 61
+fi
+
+cd "$OLD"
+docker compose down --remove-orphans
+echo '__M_STOPPED__'
+
+mv "$OLD" "$NEW"
+echo '__M_MOVED__'
+
+cd "$NEW"
+printf '%s' __COMPOSE__ > compose.yaml
+chmod 0640 compose.yaml
+
+if docker compose up -d --remove-orphans; then
+  echo '__M_DEPLOYED__'
+  docker compose ps --format '{{.Name}}|{{.Service}}|{{.State}}' 2>/dev/null || true
+  exit 0
+fi
+
+echo 'hlab:error the stack did not come up under the new name; putting it back' >&2
+cd /
+mv "$NEW" "$OLD"
+cd "$OLD"
+docker compose up -d >/dev/null 2>&1 || true
+echo '__M_ROLLED__'
+exit 62
+`
+
+// BuildRenameScript renders the script that renames a managed stack.
+func BuildRenameScript(oldName, newName string, compose []byte) (string, error) {
+	if err := ValidateName(oldName); err != nil {
+		return "", err
+	}
+	if err := ValidateName(newName); err != nil {
+		return "", err
+	}
+	if oldName == newName {
+		return "", fmt.Errorf("%q is already the name", newName)
+	}
+	if len(compose) == 0 {
+		return "", fmt.Errorf("compose file is empty")
+	}
+	// The file must state the new name, or compose takes it from the directory
+	// and the two disagree the moment anything moves again.
+	if declared := ProjectName(compose); declared != newName {
+		return "", fmt.Errorf(
+			"the compose file declares %q; it must say `name: %s` before the rename", declared, newName)
+	}
+
+	return strings.NewReplacer(
+		"__OLD__", shellQuote(RemoteDir+"/"+oldName),
+		"__NEW__", shellQuote(RemoteDir+"/"+newName),
+		"__COMPOSE__", shellQuote(string(compose)),
+		"__M_NO_DOCKER__", MarkerNoDocker,
+		"__M_STOPPED__", MarkerStopped,
+		"__M_MOVED__", MarkerMoved,
+		"__M_DEPLOYED__", MarkerDeployed,
+		"__M_ROLLED__", MarkerRolled,
+	).Replace(renameTemplate), nil
+}

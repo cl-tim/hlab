@@ -24,6 +24,7 @@ func newStackCmd(a *app) *cobra.Command {
 		newStackListCmd(a),
 		newStackPullCmd(a),
 		newStackAdoptCmd(a),
+		newStackRenameCmd(a),
 		newStackDeployCmd(a),
 		newStackInstallDockerCmd(a),
 	)

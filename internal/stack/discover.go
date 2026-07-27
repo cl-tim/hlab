@@ -212,3 +212,29 @@ func bindSourceOf(node yaml.Node) (string, bool) {
 	}
 	return source, true
 }
+
+// namedVolumesFile is the top-level volumes block of a compose document.
+type namedVolumesFile struct {
+	Volumes map[string]yaml.Node `yaml:"volumes"`
+}
+
+// NamedVolumes reports the named volumes a compose file declares.
+//
+// These matter for a rename: compose prefixes a named volume with the project
+// name, so renaming the project leaves the old volume behind and starts the
+// stack against an empty new one. The data is not lost, but the stack comes up
+// as though it were new — which is worse than failing, because it looks like
+// it worked.
+func NamedVolumes(compose []byte) ([]string, error) {
+	var doc namedVolumesFile
+	if err := yaml.Unmarshal(compose, &doc); err != nil {
+		return nil, fmt.Errorf("parse compose file: %w", err)
+	}
+
+	out := make([]string, 0, len(doc.Volumes))
+	for name := range doc.Volumes {
+		out = append(out, name)
+	}
+	sort.Strings(out)
+	return out, nil
+}
