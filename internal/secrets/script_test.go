@@ -104,3 +104,54 @@ func TestListingShowsNoValues(t *testing.T) {
 		}
 	}
 }
+
+// The value must never share a stream with the script that stores it.
+//
+// Feeding both to `sudo -n sh -s` fails silently and dangerously: sudo hands
+// the whole stream to the shell, which reads the appended value as another
+// line of script and tries to execute it. The secret ends up empty and the
+// credential has been handed to a shell as a command.
+func TestSetReadsTheValueFromItsOwnStream(t *testing.T) {
+	script, err := BuildSetScript(Options{Stack: "homeassistant", File: "homeassistant.env", Key: "HASS_TOKEN"})
+	if err != nil {
+		t.Fatalf("BuildSetScript: %v", err)
+	}
+
+	if !strings.Contains(script, "/tmp/hlab-secret-value") {
+		t.Error("the value is not staged separately from the script")
+	}
+	// A bare `cat` with no file reads stdin, which is the stream the script
+	// itself arrived on — the exact mistake this guards.
+	if strings.Contains(script, "$(cat)\n") || strings.Contains(script, "VALUE=$(cat)\n") {
+		t.Error("the value is read from the script's own stdin")
+	}
+	if !strings.Contains(StageCommand, "cat > /tmp/hlab-secret-value") {
+		t.Error("the staging command does not receive the value on its own stdin")
+	}
+}
+
+// An empty value must fail loudly rather than writing an empty secret that
+// looks stored and silently authenticates nothing.
+func TestSetRefusesAnEmptyValue(t *testing.T) {
+	script, err := BuildSetScript(Options{Stack: "s", File: "f.env", Key: "K"})
+	if err != nil {
+		t.Fatalf("BuildSetScript: %v", err)
+	}
+	for _, want := range []string{"did not arrive", "is empty"} {
+		if !strings.Contains(script, want) {
+			t.Errorf("the script does not refuse the %q case", want)
+		}
+	}
+}
+
+// The staged value is removed whatever happens, so a secret is not left
+// readable in /tmp after a failure.
+func TestStagedValueIsAlwaysRemoved(t *testing.T) {
+	script, err := BuildSetScript(Options{Stack: "s", File: "f"})
+	if err != nil {
+		t.Fatalf("BuildSetScript: %v", err)
+	}
+	if !strings.Contains(script, `trap 'rm -f "$STAGED"' EXIT`) {
+		t.Error("the staged value is not cleaned up on every exit path")
+	}
+}

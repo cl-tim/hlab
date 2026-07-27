@@ -61,10 +61,17 @@ $SUDO chmod 0600 "$FILE"
 echo '__M_WRITTEN__'
 `
 
-// setTemplate writes a value supplied by the operator.
+// StageCommand receives the secret's value on stdin, and nothing else.
 //
-// The value arrives on stdin rather than in the command line, so it never
-// appears in the machine's process list where any other user could read it.
+// The value must not share a stream with the script that stores it. Feeding
+// both to `sudo -n sh -s` does not work and does not fail loudly: sudo hands
+// the entire stream to the shell, which reads the appended value as another
+// line of *script* and tries to execute it. The secret is silently empty and
+// the credential has been passed to a shell as a command. Staging it through
+// its own invocation is the only way the two stay separate.
+const StageCommand = "sh -c 'cat > /tmp/hlab-secret-value'"
+
+// setTemplate stores a value that was staged separately.
 const setTemplate = `
 set -eu
 
@@ -75,11 +82,23 @@ if [ "$(id -u 2>/dev/null)" != 0 ] && command -v sudo >/dev/null 2>&1; then
   fi
 fi
 
+STAGED=/tmp/hlab-secret-value
+trap 'rm -f "$STAGED"' EXIT
+
 DIR=__DIR__
 FILE=__FILE__
 
+if [ ! -s "$STAGED" ]; then
+  echo 'hlab:error the value did not arrive; nothing was written' >&2
+  exit 71
+fi
+VALUE=$(cat "$STAGED")
+if [ -z "$VALUE" ]; then
+  echo 'hlab:error the value is empty; nothing was written' >&2
+  exit 72
+fi
+
 $SUDO mkdir -p "$DIR"
-VALUE=$(cat)
 __WRITE__
 
 $SUDO chmod 0600 "$FILE"
