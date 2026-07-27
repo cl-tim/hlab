@@ -156,3 +156,13 @@
         href: http://hass.example/
         description: device automation and local control
         siteMonitor: http://hass.example/
+        widget:
+          type: homeassistant
+          # Addressed directly rather than through the proxy: a widget that
+          # depends on the proxy reports the proxy being down as the service
+          # being down, which sends you looking in the wrong place.
+          url: http://media-1.example:8123
+          # The token lives in the env file written by `hlab secret`, never in
+          # this file — this one is committed.
+          key: "{{HOMEPAGE_VAR_HASS_TOKEN}}"
+          fields: ["people_home", "lights_on", "switches_on"]
