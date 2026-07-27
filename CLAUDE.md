@@ -389,6 +389,37 @@ resolution error rather than anything pointing at DNS having changed. The fix
 is either an FQDN in the config or `dns_opt: [ndots:1]` on the service; the
 printfarm stack carries both.
 
+## Updates
+
+`internal/updates` splits into a check that changes nothing that runs and an
+apply that is explicit. The check does refresh the package index — asking what
+is upgradable against a stale one answers a question nobody asked — but
+installs nothing and touches no container.
+
+Two things about the apply are load-bearing:
+
+- **`upgrade`, never `full-upgrade`.** It will not remove a package to satisfy
+  a dependency, which is the right default for a machine nobody is standing
+  next to. `--force-confold`/`--force-confdef` keep the configuration already
+  on the machine; without them dpkg stops on a changed config file and waits
+  for an answer that is never coming.
+- **`upgrade` alone never installs a kernel.** Bumping `linux-image-generic`
+  means installing a new `linux-image-<version>` package, and plain `upgrade`
+  refuses to install anything new — so the kernel is held back forever and the
+  machine never takes a kernel security fix. `--allow-new` adds
+  `--with-new-pkgs`, which permits installs but still never removals. Held-back
+  packages are reported for exactly this reason; do not quietly drop them.
+
+Nothing here reboots a machine. A pending reboot is reported so the operator
+picks the moment, and `TestNothingReboots` guards it.
+
+The container half is deliberately narrow: it refreshes only stacks under
+`/opt/hlab/stacks`, because a hand-made project elsewhere has no reviewed
+compose file locally and pulling it would act on a definition nobody has read.
+The *check* compares each running container against its own local image, which
+is a pure local read — it detects "the image moved but the container did not",
+not "the registry has something newer".
+
 ## Security posture
 
 Host keys are verified against `known_hosts` by default; `--insecure-host-key`
