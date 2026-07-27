@@ -137,6 +137,7 @@ func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 		newRestoreCmd(a),
 		newRebootCmd(a),
 		newLogsCmd(a),
+		newCheckCmd(a),
 	)
 
 	return root

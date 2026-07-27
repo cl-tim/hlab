@@ -500,6 +500,31 @@ project and does not follow — the renamed stack starts against an empty one an
 looks healthy. `stack rename` therefore refuses when any are declared unless
 `--force` is passed.
 
+## Health checks
+
+`hlab check` answers a different question to `ping`. Reachable means SSH
+answered; this asks whether the machine is doing its job. The gap is not
+theoretical — a container ran for two days in "Up" while failing every
+request, and nothing in the tool could see it.
+
+Two principles keep it useful:
+
+- **Quiet thresholds.** A check that cries wolf gets ignored, and an ignored
+  check is worse than no check. Disk warns at 85% and fails at 95%; a container
+  is only crash-looping after several restarts.
+- **Only the machine's own disks.** Network filesystems are excluded
+  deliberately: a full NAS is a real problem but it is not this machine's, and
+  including it means every host mounting the share reports itself sick at once.
+  Pseudo-filesystems are excluded because they fill and empty on their own.
+
+`systemctl --failed` reports anything that failed *since boot*, so a unit can
+show as failed on a machine that is working now — the failure was at boot and
+nothing has cleared it. Worth knowing when reading the output: it is a real
+signal, but it is not necessarily a current one.
+
+A stack running fewer services than its compose file declares is a failure
+`docker ps` cannot show, because the thing to notice is the one that is absent.
+
 ## Security posture
 
 Host keys are verified against `known_hosts` by default; `--insecure-host-key`
