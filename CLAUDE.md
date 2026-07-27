@@ -436,6 +436,42 @@ The *check* compares each running container against its own local image, which
 is a pure local read — it detects "the image moved but the container did not",
 not "the registry has something newer".
 
+## Backup
+
+`internal/backup` archives `/opt/hlab/stacks` — the compose files and, far more
+importantly, the data beside them: a DNS zone, a DHCP lease database, service
+credentials, printer configuration. On this fleet that is a couple of
+megabytes sitting on an SD card, and it is the whole network's name resolution.
+
+Bulk data mounted from elsewhere is deliberately excluded. A media library is
+large, is not hlab's, and including it would turn a cheap safety net into
+something nobody runs.
+
+The load-bearing property is **verification at both ends**:
+
+- The machine checksums the file it wrote; hlab checks the digest *and* the
+  byte count after transfer. A truncated archive decodes into a plausible-
+  looking tar and fails only when somebody tries to restore from it, which is
+  the worst possible moment to find out.
+- The digest is stored beside the archive, so a restore proves the file on disk
+  is still the one that was taken.
+- Base64 rather than raw bytes on the wire: the archive shares stdout with
+  whatever else the shell might emit.
+
+`restore` order is also load-bearing: verify the checksum, stop the stacks so
+their data does not move underneath them, copy the current state aside under
+`/var/lib/hlab`, unpack, start again. A restore from the wrong archive is
+therefore reversible. The checksum is interpolated into a root shell script, so
+it is validated as a hex digest rather than trusted to be one.
+
+A machine with no `/opt/hlab/stacks` returns `ErrNothing`, not an error — most
+machines in a fleet run no stacks, and failing on them would make a healthy run
+exit non-zero and be useless to anything scheduled.
+
+**Not covered:** hlab's own home — `config.yaml` and `id_hlab`. Losing the
+management key means losing access to every enrolled machine, and it lives on
+the operator's workstation, not on the fleet.
+
 ## Security posture
 
 Host keys are verified against `known_hosts` by default; `--insecure-host-key`
