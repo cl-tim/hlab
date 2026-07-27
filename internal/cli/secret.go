@@ -203,10 +203,22 @@ func newSecretSetCmd(a *app) *cobra.Command {
 			}
 			defer func() { _ = client.Close() }()
 
-			// The script comes first on stdin and then the value, so the value
-			// never reaches a command line.
-			res, err := sshx.Exec(cmd.Context(), client, "sudo -n sh -s", bytes.NewReader(
-				[]byte(script+"\n"+value)))
+			// The value is staged by its own invocation, carrying nothing else.
+			// It must not travel on the same stream as the script: sudo hands
+			// the whole stream to the shell, which reads the value as another
+			// line of script and tries to run it.
+			staged, err := sshx.Exec(cmd.Context(), client, secrets.StageCommand,
+				bytes.NewReader([]byte(value)))
+			if err != nil {
+				return err
+			}
+			if !staged.OK() {
+				return fmt.Errorf("could not stage the value: %s",
+					orDash(firstNonEmptyLine(staged.Stderr)))
+			}
+
+			res, err := sshx.Exec(cmd.Context(), client, "sudo -n sh -s",
+				bytes.NewReader([]byte(script)))
 			if err != nil {
 				return err
 			}
