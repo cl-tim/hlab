@@ -17,6 +17,7 @@ func newUpdateCmd(a *app) *cobra.Command {
 	var (
 		apply    bool
 		allowNew bool
+		reboot   bool
 		pkgsOnly bool
 		imgsOnly bool
 		detail   bool
@@ -36,8 +37,12 @@ func newUpdateCmd(a *app) *cobra.Command {
 			"Anything that would need a removal is held back and reported, which is the\n" +
 			"right default for a machine you are not standing next to. Configuration\n" +
 			"files already on the machine are kept.\n\n" +
-			"A reboot is never taken automatically. Machines needing one are reported so\n" +
-			"you can choose when.\n\n" +
+			"A reboot is never taken unless --reboot is given. With it, a machine that\n" +
+			"asks for one is restarted after its upgrade and hlab waits for it to come\n" +
+			"back, checking the kernel's boot id so a reboot that silently failed is not\n" +
+			"reported as one that worked. Machines that do not need a reboot are left\n" +
+			"alone, and one that is the only recorded resolver for another machine is\n" +
+			"refused.\n\n" +
 			"Nothing is installed unless --apply is given.",
 		Example: "  hlab update\n" +
 			"  hlab update @servers\n" +
@@ -64,7 +69,7 @@ func newUpdateCmd(a *app) *cobra.Command {
 			if !apply {
 				return a.summariseUpdates(statuses)
 			}
-			return a.applyUpdates(cmd.Context(), hosts, statuses, !imgsOnly, !pkgsOnly, allowNew)
+			return a.applyUpdates(cmd.Context(), hosts, statuses, !imgsOnly, !pkgsOnly, allowNew, reboot)
 		},
 	}
 
@@ -72,6 +77,8 @@ func newUpdateCmd(a *app) *cobra.Command {
 	f.BoolVar(&apply, "apply", false, "actually install the updates; without it nothing is changed")
 	f.BoolVar(&allowNew, "allow-new", false,
 		"let apt install new packages so held-back kernel updates can proceed; it still never removes one")
+	f.BoolVar(&reboot, "reboot", false,
+		"reboot a machine that asks for one after upgrading, and wait for it to come back")
 	f.BoolVar(&pkgsOnly, "packages", false, "only operating system packages")
 	f.BoolVar(&imgsOnly, "images", false, "only container images")
 	f.BoolVar(&detail, "detail", false, "list the individual packages rather than counting them")
@@ -196,7 +203,8 @@ func (a *app) summariseUpdates(statuses []updates.Status) error {
 // machine should stop the run rather than reach the whole fleet before anyone
 // notices.
 func (a *app) applyUpdates(
-	ctx context.Context, hosts []inventory.Host, statuses []updates.Status, doPkgs, doImgs, allowNew bool,
+	ctx context.Context, hosts []inventory.Host, statuses []updates.Status,
+	doPkgs, doImgs, allowNew, reboot bool,
 ) error {
 	pending := map[string]updates.Status{}
 	for _, s := range statuses {
@@ -214,22 +222,37 @@ func (a *app) applyUpdates(
 		if s.Err != "" {
 			continue
 		}
-		if doPkgs && len(s.Packages) == 0 && (!doImgs || len(s.Stacks) == 0) {
+		// A machine with nothing pending but a reboot already outstanding is
+		// precisely the one --reboot exists for, so the work it needs is
+		// decided per kind rather than by the package count alone.
+		wantPkgs := doPkgs && len(s.Packages) > 0
+		wantImgs := doImgs && len(s.Stacks) > 0
+		wantReboot := reboot && s.Reboot
+		if !wantPkgs && !wantImgs && !wantReboot {
 			continue
 		}
 
 		fmt.Fprintf(a.errOut, "\n%s:\n", h.Name)
 		hostFailed := false
 
-		if doPkgs && len(s.Packages) > 0 {
+		if wantPkgs {
 			if err := a.runUpdateStep(ctx, dialer, h, "packages", updates.BuildUpgradeScript(allowNew)); err != nil {
 				fmt.Fprintf(a.errOut, "  packages failed: %v\n", err)
 				hostFailed = true
 			}
 		}
-		if doImgs && !hostFailed && len(s.Stacks) > 0 {
+		if wantImgs && !hostFailed {
 			if err := a.runUpdateStep(ctx, dialer, h, "images", updates.BuildImageScript()); err != nil {
 				fmt.Fprintf(a.errOut, "  images failed: %v\n", err)
+				hostFailed = true
+			}
+		}
+
+		// The reboot comes last and only for a machine that asks for one, so a
+		// selector can carry --reboot without restarting anything needlessly.
+		if wantReboot && !hostFailed {
+			if err := a.rebootHost(ctx, dialer, h, a.cfg.Inventory.Hosts(), false); err != nil {
+				fmt.Fprintf(a.errOut, "  reboot failed: %v\n", err)
 				hostFailed = true
 			}
 		}

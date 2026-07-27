@@ -95,3 +95,39 @@ func TestImageRefreshTouchesOnlyManagedStacks(t *testing.T) {
 		t.Error("the images are pulled after the containers are recreated")
 	}
 }
+
+// The reboot has to be detached: it takes down the connection the script runs
+// over, and a shell killed by that SIGHUP can take the command with it before
+// the machine has been told to go anywhere.
+func TestRebootIsDetachedAndConditional(t *testing.T) {
+	script := BuildRebootScript(false)
+
+	if !strings.Contains(script, "setsid") {
+		t.Error("the reboot is not detached from the session")
+	}
+	if !strings.Contains(script, "/var/run/reboot-required") {
+		t.Error("the reboot is not conditional on one being needed")
+	}
+	if !strings.Contains(script, MarkerNoReboot) {
+		t.Error("a machine that needs no reboot has no way to say so")
+	}
+}
+
+// With force the machine restarts whether or not it asked to.
+func TestForcedRebootSkipsTheCondition(t *testing.T) {
+	if !strings.Contains(BuildRebootScript(true), "set -- force") {
+		t.Error("forced reboot does not pass the force argument")
+	}
+	if !strings.Contains(BuildRebootScript(false), "set -- check") {
+		t.Error("unforced reboot does not pass the check argument")
+	}
+}
+
+// "It answered SSH again" is not proof of a reboot — a reboot that silently
+// failed passes that test instantly. The boot id changes only when the kernel
+// starts.
+func TestBootIDIsWhatProvesAReboot(t *testing.T) {
+	if !strings.Contains(BootIDScript, "/proc/sys/kernel/random/boot_id") {
+		t.Error("the reboot is verified by something other than the boot id")
+	}
+}

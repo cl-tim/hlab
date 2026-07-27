@@ -410,8 +410,24 @@ Two things about the apply are load-bearing:
   `--with-new-pkgs`, which permits installs but still never removals. Held-back
   packages are reported for exactly this reason; do not quietly drop them.
 
-Nothing here reboots a machine. A pending reboot is reported so the operator
-picks the moment, and `TestNothingReboots` guards it.
+Nothing reboots without `--reboot`. When it is given:
+
+- The reboot is **detached** (`setsid`), for the same reason network changes
+  are — it takes down the connection the script runs over.
+- It is **conditional**: a machine that has not asked for one is left alone, so
+  the flag is safe to pass to a whole selector.
+- It is **proved by the boot id**, not by the machine answering SSH again. A
+  reboot that silently failed passes an "is it back?" test instantly;
+  `/proc/sys/kernel/random/boot_id` changes only when the kernel starts.
+- It is **refused when the machine is the only recorded resolver** for another
+  managed machine. hlab connects by address so it never notices the breakage
+  itself, which is exactly why this is checked rather than discovered later.
+  A machine resolving through a stub (127.0.0.53) hides its real upstreams, so
+  it cannot be judged and is not counted — the check proves what it can.
+
+The work a machine needs is decided per kind, not from the package count: one
+with nothing pending but a reboot already outstanding is precisely what
+`--reboot` is for, and an earlier version skipped exactly that case.
 
 The container half is deliberately narrow: it refreshes only stacks under
 `/opt/hlab/stacks`, because a hand-made project elsewhere has no reviewed
