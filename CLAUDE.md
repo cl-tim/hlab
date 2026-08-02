@@ -479,9 +479,13 @@ A machine with no `/opt/hlab/stacks` returns `ErrNothing`, not an error — most
 machines in a fleet run no stacks, and failing on them would make a healthy run
 exit non-zero and be useless to anything scheduled.
 
-**Not covered:** hlab's own home — `config.yaml` and `id_hlab`. Losing the
-management key means losing access to every enrolled machine, and it lives on
-the operator's workstation, not on the fleet.
+`--self` adds hlab's own inventory to the same output directory. A rebuild
+needs both halves: the archive off the dead machine carries its service
+configuration, while its address, user and static network settings come from
+`config.yaml`. The management key is excluded unless `--include-key` is given,
+because `--out` is routinely pointed at a synced folder and the key is
+root-equivalent on every enrolled machine — that belongs to a deliberate
+decision, not to backing up some YAML.
 
 ## systemd-networkd
 
