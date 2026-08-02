@@ -27,7 +27,11 @@ import (
 const backupDirName = "backups"
 
 func newBackupCmd(a *app) *cobra.Command {
-	var out string
+	var (
+		out        string
+		self       bool
+		includeKey bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "backup [selector]",
@@ -88,11 +92,33 @@ func newBackupCmd(a *app) *cobra.Command {
 				return &ExitError{Code: 1}
 			}
 			fmt.Fprintf(a.errOut, "\nVerified against the checksum each machine computed.\n")
+
+			if self {
+				path, err := a.backupSelf(root, stamp, includeKey)
+				if err != nil {
+					return err
+				}
+				fmt.Fprintf(a.out, "\nhlab's own inventory -> %s\n", path)
+				if includeKey {
+					fmt.Fprintln(a.errOut,
+						"The management key is in that archive. It is root-equivalent on every\n"+
+							"enrolled machine, so wherever this folder syncs to now holds the fleet.")
+				} else {
+					fmt.Fprintln(a.errOut,
+						"The inventory is included; the management key is not. Add --include-key to\n"+
+							"add it, knowing it is root-equivalent on every enrolled machine.")
+				}
+			}
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVar(&out, "out", "", "directory to write into (default: hlab's home)")
+	f := cmd.Flags()
+	f.StringVar(&out, "out", "", "directory to write into (default: hlab's home)")
+	f.BoolVar(&self, "self", false,
+		"also archive hlab's own inventory, which a replacement machine is rebuilt from")
+	f.BoolVar(&includeKey, "include-key", false,
+		"include the management key in the --self archive; it is root-equivalent on every machine")
 	return cmd
 }
 
