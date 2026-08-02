@@ -1,6 +1,7 @@
 package backup
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -78,6 +79,48 @@ func TestArchivingOnlyReads(t *testing.T) {
 	} {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("the archive script contains %q", forbidden)
+		}
+	}
+}
+
+// The archive is for rebuilding a machine, not preserving its history.
+// Unfiltered, this fleet's few megabytes of configuration arrived as fourteen
+// megabytes of DNS blocklists, printer agent logs and downloaded UI icons.
+func TestArchiveLeavesOutWhatRegenerates(t *testing.T) {
+	script := BuildArchiveScript()
+	for _, pattern := range []string{"*.log", "logs", "blocklists", "cache.bin", ".cache"} {
+		if !strings.Contains(script, "--exclude='"+pattern+"'") {
+			t.Errorf("the archive does not exclude %q", pattern)
+		}
+	}
+}
+
+// A database copied while its service is running is the dangerous exclusion,
+// not merely the large one: the file plus its write-ahead log is an
+// inconsistent snapshot, and restoring it can produce a corrupt database
+// rather than an old one.
+func TestArchiveLeavesOutLiveDatabases(t *testing.T) {
+	script := BuildArchiveScript()
+	for _, pattern := range []string{"*.db", "*.db-wal", "*.db-shm"} {
+		if !strings.Contains(script, "--exclude='"+pattern+"'") {
+			t.Errorf("the archive would copy %q from a running service", pattern)
+		}
+	}
+}
+
+// Excluding too much is the other failure. These are what actually rebuilds a
+// machine, and none of them may match an exclusion.
+func TestExclusionsDoNotSwallowConfiguration(t *testing.T) {
+	essential := []string{
+		"compose.yaml", "Caddyfile", "configuration.yaml", "secrets.yaml",
+		"homepage.env", "admin-password", "lan.zone", "config.json",
+		"octoeverywhere.conf", "automations.yaml",
+	}
+	for _, name := range essential {
+		for _, pattern := range Excluded {
+			if matched, _ := filepath.Match(pattern, name); matched {
+				t.Errorf("%q would be excluded by %q", name, pattern)
+			}
 		}
 	}
 }

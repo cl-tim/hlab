@@ -447,6 +447,17 @@ Bulk data mounted from elsewhere is deliberately excluded. A media library is
 large, is not hlab's, and including it would turn a cheap safety net into
 something nobody runs.
 
+`Excluded` narrows it further, because the purpose is rebuilding a machine
+rather than preserving its history. Logs, caches, blocklists and downloaded UI
+icons all come back on their own, and unfiltered they dominated the archive —
+this fleet's few megabytes of configuration arrived as fourteen megabytes of
+them. **Databases are the exclusion that matters for correctness, not size**: a
+`.db` copied while its service is running, together with its `-wal`, is an
+inconsistent snapshot, and restoring it can produce a corrupt database rather
+than an old one. `TestExclusionsDoNotSwallowConfiguration` guards the opposite
+error — every file that actually rebuilds a machine is checked against the
+patterns.
+
 The load-bearing property is **verification at both ends**:
 
 - The machine checksums the file it wrote; hlab checks the digest *and* the

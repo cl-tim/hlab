@@ -24,6 +24,38 @@ const (
 	MarkerRestored = "hlab:restored"
 )
 
+// Excluded holds the patterns left out of an archive.
+//
+// The point of this backup is rebuilding a machine, not preserving its
+// history. Everything here is either regenerated on first run, or is live
+// state that should not be restored at all:
+//
+//   - Logs and caches come back on their own and dominate the archive —
+//     unfiltered, a fleet of a few megabytes of configuration was carried as
+//     fourteen megabytes of DNS blocklists and printer agent logs, plus several
+//     hundred downloaded UI icons.
+//   - A database copied while its service is running is the dangerous one. The
+//     file plus its write-ahead log is an inconsistent snapshot, and restoring
+//     it can produce a corrupt database rather than an old one. Home
+//     Assistant's recorder holds history, which is data rather than
+//     configuration, and is excluded for both reasons.
+var Excluded = []string{
+	"*.log", "*.log.*", "logs",
+	"blocklists", "stats", "cache.bin", ".cache", "deps", "tts",
+	"*.db", "*.db-wal", "*.db-shm",
+	"*.sqlite", "*.sqlite-wal", "*.sqlite-shm",
+}
+
+// excludeArgs renders the exclusions as tar arguments.
+func excludeArgs() string {
+	var b strings.Builder
+	for _, pattern := range Excluded {
+		b.WriteString(" --exclude=")
+		b.WriteString(shellQuote(pattern))
+	}
+	return b.String()
+}
+
 // archiveTemplate tars the stack directory and prints it as base64 between two
 // markers, with a checksum and a length.
 //
@@ -52,7 +84,7 @@ trap 'rm -f "$TMP"' EXIT
 
 # Ownership and modes are preserved, because a secret restored world-readable
 # is not the thing that was backed up.
-$SUDO tar -czf "$TMP" -C __PARENT__ __BASE__ 2>/dev/null
+$SUDO tar -czf "$TMP"__EXCLUDE__ -C __PARENT__ __BASE__ 2>/dev/null
 
 SUM=$($SUDO sha256sum "$TMP" | cut -d' ' -f1)
 SIZE=$($SUDO wc -c < "$TMP" | tr -d ' ')
@@ -70,6 +102,7 @@ func BuildArchiveScript() string {
 		"__DIR__", shellQuote(RemoteDir),
 		"__PARENT__", shellQuote(parent),
 		"__BASE__", shellQuote(base),
+		"__EXCLUDE__", excludeArgs(),
 		"__M_BEGIN__", MarkerBegin,
 		"__M_END__", MarkerEnd,
 		"__M_NOTHING__", MarkerNothing,
