@@ -6,6 +6,21 @@ compiled binary, cross-compiled to Linux/macOS/Windows.
 ## Build and test
 
 Go lives at `C:\Program Files\Go\bin` and may not be on PATH in a fresh shell.
+That install is 1.26; `go.mod` carries a `toolchain` line, so the go command
+downloads and uses the newer toolchain it names. The `go` directive stays at
+the minimum the code needs — raise it only when a language feature requires it.
+
+YAML is `go.yaml.in/yaml/v3`, the maintained continuation of the archived
+`gopkg.in/yaml.v3` with the same API. Don't reintroduce the old path.
+
+### Installing
+
+`.\build.ps1 install` builds into `%LOCALAPPDATA%\Programs\hlab` and adds that
+to the user PATH (`make install` -> `~/.local/bin` elsewhere). The weekly
+backup scheduled task runs the `hlab.exe` in that directory, so an install is
+also how the task gets upgraded — and `uninstall` stops it working. The old
+binary is renamed aside rather than overwritten because Windows refuses to
+overwrite a running executable.
 
 ```bash
 go build ./...

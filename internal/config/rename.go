@@ -7,7 +7,7 @@ import (
 	"os"
 	"regexp"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // validHostName is deliberately narrow: a record name is used in selectors, so

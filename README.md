@@ -31,23 +31,36 @@ command surface is currently `discover`, `enroll`, `sync`, `repair`, `hosts`,
 
 ## Install
 
-Requires Go 1.26+.
+Requires Go 1.26+. A newer toolchain is fetched automatically if `go.mod`
+asks for one.
+
+From a checkout, on Windows:
+
+```powershell
+.\build.ps1 install     # -> %LOCALAPPDATA%\Programs\hlab, added to your PATH
+.\build.ps1 uninstall
+```
+
+On Linux or macOS:
+
+```bash
+make install            # -> ~/.local/bin
+sudo make install PREFIX=/usr/local
+make uninstall
+```
+
+By default both install for the current user and need no administrator
+rights. Open a new terminal afterwards, then check with `hlab version`.
+Re-running the install replaces the binary in place, including on Windows
+while hlab is running.
+
+Or with Go alone, into `$(go env GOPATH)/bin`:
 
 ```bash
 go install github.com/cl-tim/homelab-cli/cmd/hlab@latest
 ```
 
-Or build from a checkout:
-
-```bash
-make build          # -> bin/hlab
-```
-
-On Windows, where `make` is usually absent:
-
-```powershell
-.\build.ps1
-```
+To build without installing: `make build` or `.\build.ps1` (-> `bin/`).
 
 ## Getting started
 

@@ -20,9 +20,23 @@ PLATFORMS := linux/amd64 linux/arm64 linux/arm darwin/arm64 darwin/amd64 windows
 build: ## Build hlab for the host platform into bin/
 	go build -trimpath -ldflags '$(LDFLAGS)' -o bin/$(BINARY) $(PKG)
 
+# Per-user by default, so installing needs no root. `sudo make install
+# PREFIX=/usr/local` installs for every account instead.
+PREFIX ?= $(HOME)/.local
+BINDIR := $(DESTDIR)$(PREFIX)/bin
+
 .PHONY: install
-install: ## Install hlab into $(go env GOPATH)/bin
-	go install -trimpath -ldflags '$(LDFLAGS)' $(PKG)
+install: build ## Install hlab into $(PREFIX)/bin (default ~/.local/bin)
+	install -d '$(BINDIR)'
+	install -m 0755 bin/$(BINARY) '$(BINDIR)/$(BINARY)'
+	@echo "Installed $(BINDIR)/$(BINARY)"
+	@case ":$$PATH:" in *":$(BINDIR):"*) ;; \
+		*) echo "$(BINDIR) is not on your PATH. Add to your shell profile:"; \
+		   echo "  export PATH=\"$(BINDIR):\$$PATH\"";; esac
+
+.PHONY: uninstall
+uninstall: ## Remove hlab from $(PREFIX)/bin
+	rm -f '$(BINDIR)/$(BINARY)'
 
 .PHONY: test
 test: ## Run the test suite

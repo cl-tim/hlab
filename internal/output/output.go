@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v3"
 )
 
 // Format is an output encoding selected by the global -o/--output flag.
