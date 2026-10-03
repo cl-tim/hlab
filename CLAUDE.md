@@ -361,6 +361,37 @@ atomically via rename, and refuses to write anything that would not load back.
 This is the one place that edits the user's config — discovery still only emits
 drafts to stdout.
 
+## Unenrolment
+
+`hlab unenroll` is enrolment in reverse, and it holds the same rule: **the
+inventory changes only after the machine has been proved to have changed.**
+Editing `config.yaml` alone leaves the key authorised and root on the machine,
+which is the part that matters for one leaving your hands.
+
+- **The key is matched by its base64 body, in every account.** Comments are
+  editable and the key can have been copied anywhere; the point is that it
+  opens nothing on the machine afterwards.
+- **Key before sudoers.** A failure between the two then leaves a machine the
+  key cannot open, rather than a key that still logs in unprivileged — which
+  is a state hlab could not finish from.
+- **Proof uses `DialKeyOnly`.** `Dial` falls back to the ssh-agent, and an
+  agent key that happens to work would answer "still logs in" on hlab's
+  behalf. `sshx.AuthRefused` separates "refused" from "unreachable"; the latter
+  proves nothing and is reported as inconclusive (exit 1).
+- **An account is deleted only when the machine says hlab created it** — its
+  GECOS comment is `enroll.AccountComment`, which the bootstrap writes. On an
+  adopted machine the recorded account is the operator's own. Every refusal
+  happens before the first change, so a refused run leaves the machine as it
+  was. Deletion is detached (`setsid`) because userdel refuses while the
+  session doing the deleting is logged in as that account — and so it cannot
+  be confirmed afterwards.
+- **`--offline` revokes nothing** and says so: the key remains root on that
+  machine if it ever comes back.
+
+The bootstrap and revocation share `AccountComment` and `SudoersFragment`;
+`TestBootstrapAndRevokeAgreeOnWhatHlabCreated` keeps them from drifting.
+`TestIntegrationRevoke*` run against the enrolment test container.
+
 ## Changing a machine's network
 
 `internal/netcfg` writes configuration in the SSH session but **never brings

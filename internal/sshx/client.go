@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -74,6 +75,29 @@ func (d *Dialer) Dial(ctx context.Context, t Target) (*ssh.Client, error) {
 		return nil, err
 	}
 	return d.dial(ctx, t, auths)
+}
+
+// DialKeyOnly authenticates with the target's identity file and nothing else.
+//
+// Dial falls back to the ssh-agent, which is right for managing a machine and
+// wrong for asking whether one particular key still opens it: an agent key
+// that happens to work would answer yes on that key's behalf.
+func (d *Dialer) DialKeyOnly(ctx context.Context, t Target) (*ssh.Client, error) {
+	if t.IdentityFile == "" {
+		return nil, fmt.Errorf("host %q: no identity file to test", t.Name)
+	}
+	auths, err := authMethods(Target{IdentityFile: t.IdentityFile})
+	if err != nil {
+		return nil, err
+	}
+	return d.dial(ctx, t, auths[:1])
+}
+
+// AuthRefused reports whether a dial failed because the server rejected every
+// credential offered — as opposed to the machine being unreachable, which says
+// nothing about whether those credentials work.
+func AuthRefused(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "unable to authenticate")
 }
 
 // DialPassword opens an SSH connection using password authentication, falling

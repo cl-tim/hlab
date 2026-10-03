@@ -82,9 +82,9 @@ else
   LOGIN_SHELL=/bin/sh
   [ -x /bin/bash ] && LOGIN_SHELL=/bin/bash
   if command -v useradd >/dev/null 2>&1; then
-    useradd --create-home --shell "$LOGIN_SHELL" --comment 'hlab management account' "$HLAB_USER"
+    useradd --create-home --shell "$LOGIN_SHELL" --comment __COMMENT__ "$HLAB_USER"
   elif command -v adduser >/dev/null 2>&1; then
-    adduser -D -s "$LOGIN_SHELL" "$HLAB_USER"
+    adduser -D -s "$LOGIN_SHELL" -g __COMMENT__ "$HLAB_USER"
   else
     echo 'hlab:error no useradd or adduser on this system' >&2
     exit 10
@@ -99,7 +99,7 @@ fi
 
 # --- sudo --------------------------------------------------------------
 if [ "$SUDO_MODE" = none ]; then
-  rm -f /etc/sudoers.d/60-hlab
+  rm -f __SUDOERS__
   echo '__M_SUDO_SKIPPED__'
 else
   if [ ! -d /etc/sudoers.d ]; then
@@ -124,9 +124,9 @@ else
     fi
   fi
 
-  mv "$SUDO_TMP" /etc/sudoers.d/60-hlab
-  chown root:root /etc/sudoers.d/60-hlab 2>/dev/null || true
-  chmod 0440 /etc/sudoers.d/60-hlab
+  mv "$SUDO_TMP" __SUDOERS__
+  chown root:root __SUDOERS__ 2>/dev/null || true
+  chmod 0440 __SUDOERS__
   echo '__M_SUDO_CONFIGURED__'
 fi
 
@@ -170,6 +170,8 @@ func BuildBootstrapScript(username, authorizedKey string, mode SudoMode) (string
 		"__USER__", shellQuote(username),
 		"__KEY__", shellQuote(authorizedKey),
 		"__SUDO_MODE__", shellQuote(string(mode)),
+		"__COMMENT__", shellQuote(AccountComment),
+		"__SUDOERS__", SudoersFragment,
 		"__M_USER_CREATED__", markerUserCreated,
 		"__M_USER_EXISTS__", markerUserExists,
 		"__M_SUDO_CONFIGURED__", markerSudoConfigured,

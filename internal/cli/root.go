@@ -130,6 +130,7 @@ func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 		newStackCmd(a),
 		newHostsCmd(a),
 		newRepairCmd(a),
+		newUnenrollCmd(a),
 		newPingCmd(a),
 		newRunCmd(a),
 		newUpdateCmd(a),

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -50,6 +51,13 @@ func (s *Server) Commands() []string {
 // are checking.
 func Start(t *testing.T, handler Handler) *Server {
 	t.Helper()
+	return StartWithKeys(t, handler, func(ssh.PublicKey) bool { return true })
+}
+
+// StartWithKeys is Start with a public-key policy, for testing what happens
+// when a machine refuses a key.
+func StartWithKeys(t *testing.T, handler Handler, accept func(ssh.PublicKey) bool) *Server {
+	t.Helper()
 
 	_, hostPriv, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
@@ -61,7 +69,10 @@ func Start(t *testing.T, handler Handler) *Server {
 	}
 
 	cfg := &ssh.ServerConfig{
-		PublicKeyCallback: func(ssh.ConnMetadata, ssh.PublicKey) (*ssh.Permissions, error) {
+		PublicKeyCallback: func(_ ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+			if !accept(key) {
+				return nil, fmt.Errorf("key refused")
+			}
 			return &ssh.Permissions{}, nil
 		},
 	}

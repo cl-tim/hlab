@@ -509,6 +509,26 @@ a terminal:
 hlab repair pi-dns --as tim
 ```
 
+## Removing a machine from management
+
+`hlab unenroll` revokes hlab's access before it touches the inventory: it
+removes hlab's key from every account on the machine and the passwordless sudo
+rule enrolment installed, then proves the key is refused. Only then is the
+record changed — kept as an unmanaged device, or deleted with `--forget`.
+
+```bash
+hlab unenroll pi-3                                   # preview
+hlab unenroll pi-3 --apply
+hlab unenroll pi-3 --forget --remove-account --apply # sold or given away
+hlab unenroll dead-pi --offline --forget --apply     # already gone
+```
+
+`--remove-account` deletes the management account too, but only one hlab
+created; on an adopted machine the account is yours and is left alone.
+`--offline` revokes nothing, since nothing can be reached — the key stays
+authorised on that machine, so wipe it if it ever turns up again. Services the
+machine runs, and `/opt/hlab`, are not touched either way.
+
 ## Syncing managed hosts
 
 `hlab sync` refreshes what hlab knows about the machines it manages: it connects
@@ -694,6 +714,7 @@ unrecognised service contributes no tag, because a wrong tag is worse than none.
 | `hlab enroll [address...]`        | Bring machines under management interactively  |
 | `hlab sync [selector]`            | Refresh what hlab knows about managed hosts    |
 | `hlab repair [selector]`          | Re-assert hlab's account on managed hosts      |
+| `hlab unenroll <host>`            | Revoke hlab's access and stop managing a host  |
 | `hlab hosts [selector]`           | List every known machine, managed or not       |
 | `hlab hosts groups`               | List groups and their members                    |
 | `hlab hosts rename <old> <new>`   | Rename a machine's inventory record              |
