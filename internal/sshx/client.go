@@ -121,6 +121,13 @@ func (d *Dialer) DialPassword(ctx context.Context, t Target, password string) (*
 
 // dial performs the connection with a prepared credential chain.
 func (d *Dialer) dial(ctx context.Context, t Target, auths []ssh.AuthMethod) (*ssh.Client, error) {
+	return d.dialWith(ctx, t, auths, d.hostKeys)
+}
+
+// dialWith is dial with a host key policy other than the dialer's own.
+func (d *Dialer) dialWith(
+	ctx context.Context, t Target, auths []ssh.AuthMethod, hostKeys ssh.HostKeyCallback,
+) (*ssh.Client, error) {
 	// Validate the target before its credentials: "no user" is the more
 	// actionable message when both are missing.
 	if t.User == "" {
@@ -134,7 +141,7 @@ func (d *Dialer) dial(ctx context.Context, t Target, auths []ssh.AuthMethod) (*s
 	cfg := &ssh.ClientConfig{
 		User:            t.User,
 		Auth:            auths,
-		HostKeyCallback: d.hostKeys,
+		HostKeyCallback: hostKeys,
 		Timeout:         d.opts.ConnectTimeout,
 	}
 

@@ -32,6 +32,10 @@ func newSyncCmd(a *app) *cobra.Command {
 			"they can rather than failing. Nothing is installed or changed, and sudo is\n" +
 			"never used — so process names against listening ports only appear when the\n" +
 			"configured user can see them.\n\n" +
+			"A machine that cannot be reached at its recorded address but whose name\n" +
+			"now resolves elsewhere is followed there — only if it presents the host\n" +
+			"key recorded for the old address, which proves it is the same machine.\n" +
+			"The record and known_hosts are then updated.\n\n" +
 			"Exits non-zero if any host could not be reached.",
 		Example: "  hlab sync\n" +
 			"  hlab sync @core\n" +
@@ -54,6 +58,22 @@ func newSyncCmd(a *app) *cobra.Command {
 			}
 
 			snapshots := facts.NewCollector(exec).Collect(cmd.Context(), targets)
+
+			// Following a move writes the config and known_hosts, so it is
+			// part of saving rather than something a dry look should do.
+			if save {
+				moves, retry := a.followMoves(cmd.Context(), snapshots, targets)
+				a.reportMoves(moves)
+				if len(retry) > 0 {
+					// A fresh executor, so its host key verifier sees the
+					// entries just recorded for the new addresses.
+					again, err := a.newExecutor()
+					if err != nil {
+						return err
+					}
+					snapshots = replaceSnapshots(snapshots, facts.NewCollector(again).Collect(cmd.Context(), retry))
+				}
+			}
 
 			if save {
 				a.persistFacts(snapshots)

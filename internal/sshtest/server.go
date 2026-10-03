@@ -34,6 +34,8 @@ type Server struct {
 	Addr string
 	Host string
 	Port int
+	// HostKey is the key the server presents, for tests that record it.
+	HostKey ssh.PublicKey
 
 	mu       sync.Mutex
 	commands []string
@@ -93,7 +95,7 @@ func StartWithKeys(t *testing.T, handler Handler, accept func(ssh.PublicKey) boo
 		t.Fatalf("parse port: %v", err)
 	}
 
-	srv := &Server{Addr: ln.Addr().String(), Host: host, Port: port}
+	srv := &Server{Addr: ln.Addr().String(), Host: host, Port: port, HostKey: hostSigner.PublicKey()}
 
 	go func() {
 		for {

@@ -361,6 +361,26 @@ atomically via rename, and refuses to write anything that would not load back.
 This is the one place that edits the user's config — discovery still only emits
 drafts to stdout.
 
+## Machines that move
+
+hlab connects by recorded address, so a machine whose DHCP lease changes fails
+every command — `sync` included, which is the one that would otherwise notice.
+`sync` therefore follows moves (`cli/moved.go`): for a machine that failed, it
+resolves the record's hostname and name, and tries any *other* address found.
+
+The address is followed only through `sshx.DialMoved`, which accepts the new
+address solely on the host key known_hosts holds for the **old** one. DNS is
+what an attacker would poison; holding the private half of the recorded host
+key is what proves it is the same machine. Nothing new is trusted — the old
+key is only allowed to vouch for a second address, which is then recorded so
+ordinary verification works there. `TestDialMovedRefusesAnImpostor` guards the
+property, and was checked by mutation.
+
+`config.MoveHost` absorbs an unmanaged record already at the new address — a
+scan after the move records the machine a second time — but refuses to land on
+a *managed* one, which is a real conflict. Following writes config and
+known_hosts, so it only happens when `sync` is saving.
+
 ## Unenrolment
 
 `hlab unenroll` is enrolment in reverse, and it holds the same rule: **the
