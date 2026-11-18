@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,17 +16,20 @@ import (
 	"github.com/cl-tim/homelab-cli/internal/config"
 	"github.com/cl-tim/homelab-cli/internal/discover"
 	"github.com/cl-tim/homelab-cli/internal/enroll"
+	"github.com/cl-tim/homelab-cli/internal/facts"
 	"github.com/cl-tim/homelab-cli/internal/inventory"
 	"github.com/cl-tim/homelab-cli/internal/sshx"
 )
 
-// enrollOptions are the settings shared by `hlab enroll` and `discover scan --adopt`.
+// enrollOptions are the settings shared by `hlab enroll` and `discover --enroll`.
 type enrollOptions struct {
 	managementUser string
 	sudoMode       string
 	keyPath        string
 	writeConfig    bool
 	provisionOnly  bool
+	syncAfter      bool
+	includeIgnored bool
 }
 
 func (o *enrollOptions) register(f interface {
@@ -36,6 +41,8 @@ func (o *enrollOptions) register(f interface {
 		"privileges for the management account: nopasswd, password, or none")
 	f.StringVar(&o.keyPath, "key", "", "hlab's management private key (default: "+config.ManagementKeyPath()+")")
 	f.BoolVar(&o.writeConfig, "write-config", true, "record enrolled machines in the config file")
+	f.BoolVar(&o.includeIgnored, "include-ignored", false, "offer enrollment for previously ignored endpoints")
+	f.BoolVar(&o.syncAfter, "sync", false, "collect and save the first inventory snapshot after enrollment")
 	f.BoolVar(&o.provisionOnly, "provision", false,
 		"always create the management account, without asking whether to use existing credentials")
 }
@@ -44,11 +51,11 @@ func newEnrollCmd(a *app) *cobra.Command {
 	opts := &enrollOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "enroll [address...]",
+		Use:   "enroll [name-or-address...]",
 		Short: "Bring machines under management interactively",
 		Long: "Walks machines one at a time and asks whether each should be managed.\n\n" +
 			"With no arguments it works through the unmanaged machines already recorded\n" +
-			"by `hlab discover scan`, so there is no need to rescan. Given addresses, it\n" +
+			"by `hlab discover`, so there is no need to rescan. Given names or addresses, it\n" +
 			"offers those instead; a range or CIDR block is scanned for SSH first.\n\n" +
 			"For each machine you accept it asks for a name, an optional description,\n" +
 			"and how hlab should get in: either by creating a dedicated management\n" +
@@ -58,6 +65,7 @@ func newEnrollCmd(a *app) *cobra.Command {
 			"Credentials you type are used for that connection only and are never\n" +
 			"written anywhere.",
 		Example: "  hlab enroll\n" +
+			"  hlab enroll new-pi --sync\n" +
 			"  hlab enroll 192.0.2.26\n" +
 			"  hlab enroll 192.0.2.0/24 --sudo none",
 		Args: cobra.ArbitraryArgs,
@@ -67,7 +75,7 @@ func newEnrollCmd(a *app) *cobra.Command {
 				pending := a.cfg.Inventory.Unmanaged()
 				if len(pending) == 0 {
 					fmt.Fprintln(a.errOut, "Every machine hlab knows about is already managed.")
-					fmt.Fprintln(a.errOut, "Look for more with: hlab discover scan")
+					fmt.Fprintln(a.errOut, "Look for more with: hlab discover")
 					return nil
 				}
 
@@ -81,10 +89,14 @@ func newEnrollCmd(a *app) *cobra.Command {
 
 			// An explicit host:port is taken at face value, so a machine on a
 			// non-standard SSH port can be enrolled directly.
-			explicit, remaining := splitExplicitTargets(args)
+			named, addresses, err := namedEnrollmentTargets(a.cfg.Inventory, args)
+			if err != nil {
+				return err
+			}
+			explicit, remaining := splitExplicitTargets(addresses)
 
 			if len(remaining) == 0 {
-				return a.runEnrollment(cmd.Context(), explicit, opts)
+				return a.runEnrollment(cmd.Context(), append(named, explicit...), opts)
 			}
 
 			addrs, err := discover.ExpandTargets(remaining, discover.DefaultMaxTargets)
@@ -111,18 +123,35 @@ func newEnrollCmd(a *app) *cobra.Command {
 					candidates = append(candidates, candidateFromScan(r))
 				}
 
-				if len(candidates) == 0 {
+				if len(named) == 0 && len(candidates) == 0 {
 					fmt.Fprintln(a.errOut, "No unmanaged machines with SSH found.")
 					return nil
 				}
 			}
 
-			return a.runEnrollment(cmd.Context(), candidates, opts)
+			return a.runEnrollment(cmd.Context(), append(named, candidates...), opts)
 		},
 	}
 
 	opts.register(cmd.Flags())
 	return cmd
+}
+
+func namedEnrollmentTargets(inv *inventory.Inventory, args []string) ([]candidate, []string, error) {
+	var named []candidate
+	var addresses []string
+	for _, arg := range args {
+		host, ok := inv.Host(arg)
+		if !ok {
+			addresses = append(addresses, arg)
+			continue
+		}
+		if host.Managed {
+			return nil, nil, fmt.Errorf("%s is already managed", host.Name)
+		}
+		named = append(named, candidateFromHost(host))
+	}
+	return named, addresses, nil
 }
 
 // splitExplicitTargets pulls out arguments written as host:port, which name a
@@ -150,10 +179,30 @@ func buildKnownHosts(ctx context.Context, a *app) discover.KnownHosts {
 	return discover.BuildKnownHosts(ctx, addressByName, 2e9)
 }
 
-// runEnrollment walks the candidates, asking about each in turn.
-func (a *app) runEnrollment(ctx context.Context, candidates []candidate, opts *enrollOptions) error {
+func (a *app) validateEnrollment(opts *enrollOptions) error {
 	if a.format.Structured() {
 		return errors.New("enrolment is interactive; run it without --output json/yaml")
+	}
+	if opts.syncAfter && !opts.writeConfig {
+		return errors.New("--sync requires --write-config")
+	}
+	if !newPrompter(a.in, a.errOut).interactive() {
+		return errors.New("enrolment needs a terminal: it asks for credentials that must not be echoed")
+	}
+	return nil
+}
+
+// runEnrollment walks the candidates, asking about each in turn.
+func (a *app) runEnrollment(ctx context.Context, candidates []candidate, opts *enrollOptions) error {
+	if !opts.includeIgnored {
+		candidates = slices.DeleteFunc(candidates, a.isIgnored)
+	}
+	if len(candidates) == 0 {
+		fmt.Fprintln(a.errOut, "No eligible machines to enroll.")
+		return nil
+	}
+	if err := a.validateEnrollment(opts); err != nil {
+		return err
 	}
 
 	sudoMode, err := enroll.ParseSudoMode(opts.sudoMode)
@@ -165,36 +214,69 @@ func (a *app) runEnrollment(ctx context.Context, candidates []candidate, opts *e
 	}
 
 	p := newPrompter(a.in, a.errOut)
-	if !p.interactive() {
-		return errors.New("enrolment needs a terminal: it asks for credentials that must not be echoed")
-	}
 
-	key, err := enroll.LoadOrCreateKey(a.managementKeyPath(opts.keyPath), "hlab management key")
-	if err != nil {
-		return err
-	}
-	if key.Created {
-		fmt.Fprintf(a.errOut, "Generated hlab's management key at %s\n  %s\n\n", key.PrivatePath, key.Fingerprint)
-	}
-
-	if sudoMode == enroll.SudoNoPassword {
-		fmt.Fprintf(a.errOut,
-			"Note: the %s account will get passwordless sudo, so anyone holding\n"+
-				"      %s has root on every enrolled machine. Use --sudo password\n"+
-				"      or --sudo none for a narrower grant.\n\n",
-			opts.managementUser, key.PrivatePath)
-	}
-
-	dialer, err := a.enrollmentDialer(p)
-	if err != nil {
-		return err
-	}
-	enroller := enroll.NewEnroller(dialer)
-
-	var enrolled, skipped, failed int
+	var key *enroll.ManagementKey
+	var enroller *enroll.Enroller
+	var enrolled, skipped, ignored, failed, syncFailed int
 
 	for i, c := range candidates {
+		if !opts.includeIgnored && a.isIgnored(c) {
+			continue
+		}
 		fmt.Fprintf(a.errOut, "\n[%d/%d] %s\n", i+1, len(candidates), c.describe())
+		choice, err := p.Choice("  Enroll (y), ignore (n), skip this time (s), or quit (q)?", []string{"y", "n", "s", "q"}, "s")
+		if errors.Is(err, ErrPromptAborted) || choice == "q" {
+			fmt.Fprintln(a.errOut, "Stopped.")
+			break
+		}
+		if err != nil {
+			return err
+		}
+		switch choice {
+		case "s":
+			skipped++
+			continue
+		case "n":
+			if !opts.writeConfig {
+				fmt.Fprintln(a.errOut, "  skipped for this run because --write-config is disabled")
+				skipped++
+				continue
+			}
+			endpoint := c.endpoint()
+			if err := config.RememberIgnored(a.configWritePath(), endpoint); err != nil {
+				return fmt.Errorf("remember ignored endpoint %s: %w", endpoint, err)
+			}
+			if !a.isIgnored(c) {
+				a.cfg.Ignored = append(a.cfg.Ignored, endpoint)
+			}
+			fmt.Fprintln(a.errOut, "  remembered as ignored")
+			ignored++
+			continue
+		}
+
+		if key == nil {
+			key, err = enroll.LoadOrCreateKey(a.managementKeyPath(opts.keyPath), "hlab management key")
+			if err != nil {
+				return err
+			}
+			if key.Created {
+				fmt.Fprintf(a.errOut, "Generated hlab's management key at %s\n  %s\n\n", key.PrivatePath, key.Fingerprint)
+			}
+
+			if sudoMode == enroll.SudoNoPassword {
+				fmt.Fprintf(a.errOut,
+					"Note: the %s account will get passwordless sudo, so anyone holding\n"+
+						"      %s has root on every enrolled machine. Use --sudo password\n"+
+						"      or --sudo none for a narrower grant.\n\n",
+					opts.managementUser, key.PrivatePath)
+			}
+
+			dialer, err := a.enrollmentDialer(p)
+			if err != nil {
+				return err
+			}
+			enroller = enroll.NewEnroller(dialer)
+		}
 
 		outcome, action, description, err := a.enrolOne(ctx, p, enroller, c, key, opts, sudoMode)
 		if errors.Is(err, ErrPromptAborted) {
@@ -209,10 +291,6 @@ func (a *app) runEnrollment(ctx context.Context, candidates []candidate, opts *e
 		case actionSkip:
 			skipped++
 			continue
-		case actionQuit:
-			fmt.Fprintln(a.errOut, "Stopped.")
-			a.reportEnrollment(enrolled, skipped, failed)
-			return nil
 		}
 
 		if !outcome.OK() {
@@ -230,19 +308,48 @@ func (a *app) runEnrollment(ctx context.Context, candidates []candidate, opts *e
 			if err := a.recordEnrolledHost(outcome, key, c, description); err != nil {
 				fmt.Fprintf(a.errOut, "  warning: could not update the config: %v\n", err)
 				fmt.Fprintf(a.errOut, "  add this entry by hand:\n%s\n", manualEntry(outcome, key))
+				if opts.syncAfter {
+					syncFailed++
+				}
 			} else {
 				fmt.Fprintf(a.errOut, "  recorded in %s\n", a.configWritePath())
+				if opts.syncAfter {
+					if err := a.syncEnrolledHost(ctx, outcome.Name); err != nil {
+						syncFailed++
+						fmt.Fprintf(a.errOut, "  enrolled %s, but its first inventory refresh failed: %v\n", outcome.Name, err)
+					}
+				}
 			}
 		} else {
 			fmt.Fprintf(a.errOut, "  add this entry to your config:\n%s\n", manualEntry(outcome, key))
 		}
 	}
 
-	a.reportEnrollment(enrolled, skipped, failed)
-	if failed > 0 {
+	a.reportEnrollment(enrolled, skipped, ignored, failed)
+	if failed > 0 || syncFailed > 0 {
 		return &ExitError{Code: 1}
 	}
 	return nil
+}
+
+func (a *app) syncEnrolledHost(ctx context.Context, name string) error {
+	cfg, err := config.Load(a.configWritePath())
+	if err != nil {
+		return err
+	}
+	host, ok := cfg.Inventory.Host(name)
+	if !ok || !host.Managed {
+		return fmt.Errorf("managed inventory record for %s is missing", name)
+	}
+	exec, err := a.newExecutor()
+	if err != nil {
+		return err
+	}
+	snapshots := facts.NewCollector(exec).Collect(ctx, []sshx.Target{targetFor(host)})
+	if !snapshots[0].OK() {
+		return errors.New(snapshots[0].Error)
+	}
+	return a.persistFacts(snapshots)
 }
 
 type enrollAction int
@@ -250,7 +357,6 @@ type enrollAction int
 const (
 	actionEnrol enrollAction = iota
 	actionSkip
-	actionQuit
 )
 
 // enrolOne handles the question-and-answer for a single candidate.
@@ -263,19 +369,6 @@ func (a *app) enrolOne(
 	opts *enrollOptions,
 	sudoMode enroll.SudoMode,
 ) (enroll.Outcome, enrollAction, string, error) {
-	choice, err := p.Choice("  Bring this machine under management?", []string{"y", "n", "q"}, "n")
-	if err != nil {
-		return enroll.Outcome{}, actionSkip, "", err
-	}
-	switch choice {
-	case "q":
-		return enroll.Outcome{}, actionQuit, "", nil
-	case "y":
-	default:
-		fmt.Fprintln(a.errOut, "  skipped")
-		return enroll.Outcome{}, actionSkip, "", nil
-	}
-
 	name, err := p.Line("  Inventory name:", c.suggestedName(a.cfg.Inventory))
 	if err != nil {
 		return enroll.Outcome{}, actionSkip, "", err
@@ -351,6 +444,18 @@ func (a *app) enrolOne(
 
 	fmt.Fprintln(a.errOut, "  connecting...")
 	return enroller.Enrol(ctx, req), actionEnrol, description, nil
+}
+
+func (c candidate) endpoint() string {
+	address := strings.ToLower(c.Address)
+	if ip, err := netip.ParseAddr(address); err == nil {
+		address = ip.Unmap().String()
+	}
+	return net.JoinHostPort(address, strconv.Itoa(c.dialPort()))
+}
+
+func (a *app) isIgnored(c candidate) bool {
+	return slices.Contains(a.cfg.Ignored, c.endpoint())
 }
 
 // dialPort is the port to connect on, defaulting to 22.
@@ -450,8 +555,8 @@ func manualEntry(outcome enroll.Outcome, key *enroll.ManagementKey) string {
 	return b.String()
 }
 
-func (a *app) reportEnrollment(enrolled, skipped, failed int) {
-	fmt.Fprintf(a.out, "\n%d enrolled, %d skipped, %d failed\n", enrolled, skipped, failed)
+func (a *app) reportEnrollment(enrolled, skipped, ignored, failed int) {
+	fmt.Fprintf(a.out, "\n%d enrolled, %d skipped, %d ignored, %d failed\n", enrolled, skipped, ignored, failed)
 	if enrolled > 0 {
 		fmt.Fprintln(a.errOut, "Check them with: hlab ping '#managed'")
 	}

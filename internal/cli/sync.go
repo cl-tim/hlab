@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -76,7 +77,9 @@ func newSyncCmd(a *app) *cobra.Command {
 			}
 
 			if save {
-				a.persistFacts(snapshots)
+				if err := a.persistFacts(snapshots); err != nil {
+					fmt.Fprintf(a.errOut, "warning: %v\n", err)
+				}
 			}
 
 			if emitTags {
@@ -94,10 +97,7 @@ func newSyncCmd(a *app) *cobra.Command {
 
 // persistFacts writes a collection to its two homes: durable attributes onto
 // the host records, and volatile state into the facts store.
-//
-// Failures here are reported but not fatal: the operator still wants to see
-// what was collected.
-func (a *app) persistFacts(snapshots []facts.Facts) {
+func (a *app) persistFacts(snapshots []facts.Facts) error {
 	var (
 		attrs = make([]config.HostAttributes, 0, len(snapshots))
 		store = facts.Store{}
@@ -123,21 +123,25 @@ func (a *app) persistFacts(snapshots []facts.Facts) {
 	}
 
 	if len(attrs) == 0 {
-		return
+		return nil
 	}
 
+	var recordErr, factsErr error
 	if _, err := config.UpdateHostAttributes(a.configWritePath(), attrs, now); err != nil {
-		fmt.Fprintf(a.errOut, "warning: could not update the host records: %v\n", err)
+		recordErr = fmt.Errorf("could not update the host records: %w", err)
 	}
 	if err := facts.SaveStore(config.FactsPath(), store); err != nil {
-		fmt.Fprintf(a.errOut, "warning: could not write the facts store: %v\n", err)
-		return
+		factsErr = fmt.Errorf("could not write the facts store: %w", err)
+	}
+	if err := errors.Join(recordErr, factsErr); err != nil {
+		return err
 	}
 
 	if !a.format.Structured() {
 		fmt.Fprintf(a.errOut, "Recorded %d host(s) in %s and %s\n",
 			len(attrs), a.configWritePath(), config.FactsPath())
 	}
+	return nil
 }
 
 // renderFacts prints the summary table plus per-host detail.

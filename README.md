@@ -68,8 +68,8 @@ If you already have machines running and no inventory yet, start by finding
 them:
 
 ```bash
-hlab discover scan                    # sweeps your local subnets
-hlab discover scan 192.0.2.0/24     # or a range you name
+hlab discover                    # sweeps your local subnets
+hlab discover 192.0.2.0/24     # or a range you name
 ```
 
 ```console
@@ -85,7 +85,7 @@ ADDRESS         PORT   HOSTNAME      OS       SSH              STATUS
 Then turn the new ones into inventory entries:
 
 ```bash
-hlab discover scan 192.0.2.0/24 --new --emit > homelab.yaml
+hlab discover 192.0.2.0/24 --new --emit > homelab.yaml
 ```
 
 Review that file, set the right `user` for each machine, and you have an
@@ -147,7 +147,7 @@ id_hlab.pub     its public half, for reference
 ```
 
 The config is created automatically the first time any command needs it, so
-nothing has to be set up before running `hlab discover scan`.
+nothing has to be set up before running `hlab discover`.
 
 **The working directory is never searched.** That is deliberate: hlab is often
 run from inside a checkout, and one of these files is a private key that is
@@ -200,29 +200,30 @@ fails loudly instead of quietly doing nothing.
 
 ## Discovery
 
-`hlab discover scan` sweeps a range of addresses for machines with SSH open,
+`hlab discover` sweeps a range of addresses for machines with SSH open,
 reads each server's identification banner, resolves its name, and cross-checks
 the result against your inventory so you can see what is not yet managed.
 
-It only opens and closes TCP connections. It does not authenticate, and it
-changes nothing on the machines it finds.
+In a terminal, it offers to enroll unmanaged machines after the scan. Use
+`--scan-only` to scan without prompts. JSON, YAML, and noninteractive runs
+also scan only by default.
 
 Targets can be given several ways, and combined:
 
 ```bash
-hlab discover scan                              # local subnets, auto-detected
-hlab discover scan 192.0.2.0/24               # a CIDR block
-hlab discover scan 192.0.2.10                 # a single address
-hlab discover scan 192.0.2.10-192.0.2.50    # a range
-hlab discover scan 192.0.2.10-50              # last-octet shorthand
-hlab discover scan 192.0.2.0/24 198.51.100.0/24   # several at once
+hlab discover                              # local subnets, auto-detected
+hlab discover 192.0.2.0/24               # a CIDR block
+hlab discover 192.0.2.10                 # a single address
+hlab discover 192.0.2.10-192.0.2.50    # a range
+hlab discover 192.0.2.10-50              # last-octet shorthand
+hlab discover 192.0.2.0/24 198.51.100.0/24   # several at once
 ```
 
 Everything a scan finds is recorded, so the tool builds a picture of the network
 across runs — and can tell you what has changed since last time:
 
 ```console
-$ hlab discover scan 192.0.2.0/24
+$ hlab discover 192.0.2.0/24
 Recorded 10 new, 0 changed, 0 unchanged in ~/.config/hlab/config.yaml
 
 ADDRESS         PORT   HOSTNAME      OS       SSH              MANAGED   SINCE LAST SCAN
@@ -234,7 +235,7 @@ ADDRESS         PORT   HOSTNAME      OS       SSH              MANAGED   SINCE L
 ```
 
 ```console
-$ hlab discover scan 192.0.2.0/24        # a week later
+$ hlab discover 192.0.2.0/24        # a week later
 ADDRESS         PORT   HOSTNAME      OS       SSH              MANAGED   SINCE LAST SCAN
 192.0.2.10    22     nas-01        Debian   OpenSSH_10.0p2   yes       unchanged
 192.0.2.30    22     pi-01         Debian   OpenSSH_10.0p2   no        ssh: SSH-2.0-OpenSSH_9.2p1 -> SSH-2.0-OpenSSH_10.0p2
@@ -318,6 +319,24 @@ report progress on stderr.
 
 ### Enrolling machines
 
+Run `hlab discover [target]` in a terminal to scan and choose which machines to
+enroll. At each prompt, answer `y` to enroll, `n` to remember the machine as
+ignored, `s` to skip it for this run, or `q` to quit. Ignored machines stay
+visible in scan results and are skipped in future enrollment prompts. The
+config's `ignored` list stores their SSH addresses and ports. Use
+`--include-ignored` to offer them again, or remove an entry from the list to
+clear that decision. Add `--sync` to save the first inventory snapshot after
+enrolling.
+
+If a previous scan already recorded the machine, use
+`hlab enroll <inventory-name> --sync` to enroll it by name without scanning
+again. Run `hlab enroll --sync` to go through all saved unmanaged machines.
+`--sync` requires saving the inventory entry, which is the default.
+
+The legacy `hlab discover scan` command remains scan-only unless you pass
+`--enroll` or `--adopt`.
+
+
 `hlab enroll` walks machines one at a time and asks about each. With no
 arguments it works through whatever earlier scans recorded, so there is no need
 to rescan:
@@ -370,7 +389,7 @@ chain straight off a scan with `--adopt`:
 hlab enroll 192.0.2.10
 hlab enroll 198.51.100.5:2222
 hlab enroll 192.0.2.0/24               # scans first, then asks about each
-hlab discover scan 192.0.2.0/24 --adopt
+hlab discover 192.0.2.0/24 --adopt
 ```
 
 ### Two ways in
@@ -436,8 +455,8 @@ checking exists to catch.
 what to keep:
 
 ```console
-$ hlab discover scan 192.0.2.0/24 --new --emit
-# Discovered by `hlab discover scan 192.0.2.0/24` on 2026-07-27 00:46.
+$ hlab discover 192.0.2.0/24 --new --emit
+# Discovered by `hlab discover 192.0.2.0/24` on 2026-07-27 00:46.
 # Review each entry and set the correct user, then merge into your config.
 hosts:
   - name: pi
@@ -542,7 +561,7 @@ hlab sync --emit-tags     # suggested tags from what each host runs
 ```
 
 Unmanaged machines are never contacted: there are no credentials to connect
-with. Use `hlab discover scan` to find those, and `hlab enroll` to bring them
+with. Use `hlab discover` to find those, and `hlab enroll` to bring them
 in.
 
 Once machines are under management, `hlab sync` refreshes what hlab knows about
@@ -710,7 +729,7 @@ unrecognised service contributes no tag, because a wrong tag is worse than none.
 
 | Command                          | Purpose                                        |
 | -------------------------------- | ---------------------------------------------- |
-| `hlab discover scan [target]`     | Sweep the network for machines with SSH open   |
+| `hlab discover [target]`     | Sweep the network for machines with SSH open   |
 | `hlab enroll [address...]`        | Bring machines under management interactively  |
 | `hlab sync [selector]`            | Refresh what hlab knows about managed hosts    |
 | `hlab repair [selector]`          | Re-assert hlab's account on managed hosts      |
@@ -762,6 +781,51 @@ hlab -o json hosts list '#docker' | jq -r '.[].address'
 
 In JSON and YAML modes the per-host stdout blocks and summary line are
 suppressed; you get one array of result objects and nothing else.
+
+## Backup, service health, and maintenance
+
+- `hlab backup [selector]` validates the checksum and reads each new archive
+  before saving it. Use `backup verify` later to check archives at rest.
+- `hlab stack deploy apps-1 web --apply --sync` deploys the Compose file from
+  `stacks/web/compose.yaml` under hlab's home and refreshes that host's
+  inventory afterward. Use `--with` for any extra files you want to ship
+  alongside Compose. Existing `--file` and `--name` invocations still work.
+- `hlab update @servers --apply --reboot --rolling` also handles reboot requests
+  first raised during package installation, then checks each updated host
+  before moving to the next one.
+
+- `hlab backup verify @servers --max-age 168h` checks the newest per-host
+  archive, its checksum, and whether it can be read. Use `--dir` for backups
+  stored outside the default directory. Missing or stale backups fail the check.
+- `hlab check @servers` also runs endpoints configured for the selected
+  hosts. Probes run from the machine invoking hlab and time out after five
+  seconds. HTTP requires a 2xx response, TCP requires a connection, and DNS
+  resolves a name using the invoking machine's resolver.
+- `hlab stack diff apps-1 web --file ./compose.yaml` compares the local file's
+  checksum with the deployed Compose file. Without `--file`, it uses
+  `stacks/<project>/compose.yaml` under hlab's home. Omit the project to compare
+  all running hlab-managed projects. File contents are kept out of the report.
+- `hlab update @servers --apply --rolling` verifies each updated host and its
+  configured endpoints before moving on. A failed or incomplete health check
+  stops the rollout.
+- `hlab hosts history apps-1` shows the last 100 observed kernel, interface
+  address, and running service changes for that host. A saved, complete
+  `hlab sync` establishes the baseline on its first run.
+- `hlab backup drill drill-1 --from ./backup.tar.gz` previews a recovery drill.
+  Tag the disposable host `recovery-drill`, configure at least one endpoint
+  pointing at its restored services, and keep it isolated from production.
+  With `--apply`, the drill replaces the host's hlab state, starts the restored
+  stacks, and checks the host and endpoints.
+
+Configure probes under the top-level `endpoints` key, grouped by inventory host.
+
+```yaml
+endpoints:
+  apps-1:
+    - {name: web, kind: http, target: "https://apps.example.test/health"}
+    - {name: database, kind: tcp, target: "apps.example.test:5432"}
+    - {name: dns, kind: dns, target: "apps.example.test"}
+```
 
 ## Authentication and host keys
 

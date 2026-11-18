@@ -18,7 +18,9 @@ import (
 // point in time. The durable attributes — kernel, arch, CPU, memory, network —
 // live on the host record in the config instead, so that file stays readable.
 type Snapshot struct {
-	CollectedAt time.Time `yaml:"collectedAt" json:"collectedAt"`
+	Observed    map[string]string `yaml:"observed,omitempty" json:"observed,omitempty"`
+	History     []Change          `yaml:"history,omitempty" json:"history,omitempty"`
+	CollectedAt time.Time         `yaml:"collectedAt" json:"collectedAt"`
 
 	UptimeSeconds int64     `yaml:"uptimeSeconds,omitempty" json:"uptimeSeconds,omitempty"`
 	LoadAverage   []float64 `yaml:"loadAverage,omitempty,flow" json:"loadAverage,omitempty"`
@@ -38,6 +40,7 @@ type Store map[string]Snapshot
 // SnapshotOf extracts the storable half of a collection result.
 func SnapshotOf(f Facts, collectedAt time.Time) Snapshot {
 	return Snapshot{
+		Observed:      observedState(f),
 		CollectedAt:   collectedAt.Truncate(time.Second),
 		UptimeSeconds: f.UptimeSeconds,
 		LoadAverage:   f.LoadAverage,
@@ -82,7 +85,7 @@ func SaveStore(path string, updates Store) error {
 		return err
 	}
 	for host, snapshot := range updates {
-		store[host] = snapshot
+		store[host] = recordChanges(store[host], snapshot)
 	}
 
 	return writeStore(path, store)

@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // Project is one Docker Compose project as the machine reports it.
@@ -100,8 +102,8 @@ func BuildReadScript(paths []string) string {
 	b.WriteString("set -eu\n")
 	for _, p := range paths {
 		fmt.Fprintf(&b, "printf '%%s%%s\\n' %s %s\n",
-			shellQuote(FileMarker), shellQuote(p))
-		fmt.Fprintf(&b, "cat %s 2>/dev/null || true\n", shellQuote(p))
+			shellword.Quote(FileMarker), shellword.Quote(p))
+		fmt.Fprintf(&b, "cat %s 2>/dev/null || true\n", shellword.Quote(p))
 	}
 	return b.String()
 }

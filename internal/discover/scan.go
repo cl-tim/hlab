@@ -26,6 +26,7 @@ type Result struct {
 	// hlab has credentials for it.
 	Managed   bool   `json:"managed" yaml:"managed"`
 	ManagedAs string `json:"managedAs,omitempty" yaml:"managedAs,omitempty"`
+	Ignored   bool   `json:"ignored,omitempty" yaml:"ignored,omitempty"`
 	// SeenBefore is set when a previous scan already recorded this machine.
 	// It is independent of Managed: a machine can be seen repeatedly and still
 	// never be brought under management.

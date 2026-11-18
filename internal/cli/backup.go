@@ -91,7 +91,7 @@ func newBackupCmd(a *app) *cobra.Command {
 				fmt.Fprintf(a.errOut, "\n%d machine(s) could not be backed up.\n", failed)
 				return &ExitError{Code: 1}
 			}
-			fmt.Fprintf(a.errOut, "\nVerified against the checksum each machine computed.\n")
+			fmt.Fprintf(a.errOut, "\nVerified archive readability and the checksum each machine computed.\n")
 
 			if self {
 				path, err := a.backupSelf(root, stamp, includeKey)
@@ -113,6 +113,7 @@ func newBackupCmd(a *app) *cobra.Command {
 		},
 	}
 
+	cmd.AddCommand(newBackupVerifyCmd(a), newRecoveryDrillCmd(a))
 	f := cmd.Flags()
 	f.StringVar(&out, "out", "", "directory to write into (default: hlab's home)")
 	f.BoolVar(&self, "self", false,
@@ -134,6 +135,10 @@ func (a *app) backupHost(
 	arc, err := backup.ParseArchive(h.Name, res.Stdout)
 	if err != nil {
 		return "", backup.Archive{}, err
+	}
+
+	if err := checkArchiveReadable(arc.Data); err != nil {
+		return "", backup.Archive{}, fmt.Errorf("read downloaded archive: %w", err)
 	}
 
 	dir := filepath.Join(root, h.Name)
@@ -269,7 +274,11 @@ func (a *app) restoreHost(
 		return fmt.Errorf("%s", strings.TrimPrefix(msg, "hlab:error "))
 	}
 
-	fmt.Fprintf(a.out, "\nRestored %s. Run `hlab sync %s` to record what is now running.\n", h.Name, h.Name)
+	w := a.out
+	if a.format.Structured() {
+		w = a.errOut
+	}
+	fmt.Fprintf(w, "\nRestored %s. Run `hlab sync %s` to record what is now running.\n", h.Name, h.Name)
 	return nil
 }
 

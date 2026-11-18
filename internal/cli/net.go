@@ -317,16 +317,6 @@ func runPrivilegedOn(ctx context.Context, dialer *sshx.Dialer, t sshx.Target, sc
 	return sshx.Exec(ctx, client, command, strings.NewReader(script))
 }
 
-func targetFor(h inventory.Host) sshx.Target {
-	return sshx.Target{
-		Name:         h.Name,
-		Address:      h.Address,
-		Port:         h.Port,
-		User:         h.User,
-		IdentityFile: h.IdentityFile,
-	}
-}
-
 func firstNonEmptyLine(s string) string {
 	for _, line := range strings.Split(s, "\n") {
 		if t := strings.TrimSpace(line); t != "" {

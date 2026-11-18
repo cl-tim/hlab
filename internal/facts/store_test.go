@@ -145,8 +145,8 @@ func TestStoreIsSortedAndLabelled(t *testing.T) {
 }
 
 func TestSnapshotExcludesDurableAttributes(t *testing.T) {
-	// Kernel, arch, CPU, memory and network belong on the host record, not in
-	// the volatile store. Duplicating them would let the two disagree.
+	// Current durable attributes belong on the host record. The observed
+	// kernel is retained as the baseline for history comparisons.
 	snap := SnapshotOf(Facts{
 		Host:          "a",
 		Kernel:        "6.1.0",
@@ -165,7 +165,7 @@ func TestSnapshotExcludesDurableAttributes(t *testing.T) {
 	}
 	raw, _ := os.ReadFile(path)
 
-	for _, unwanted := range []string{"kernel", "arch", "cpus", "6.1.0", "x86_64"} {
+	for _, unwanted := range []string{"\n  kernel:", "arch", "cpus", "x86_64"} {
 		if strings.Contains(string(raw), unwanted) {
 			t.Errorf("the store contains %q, which belongs on the host record:\n%s", unwanted, raw)
 		}

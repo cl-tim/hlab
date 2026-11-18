@@ -49,10 +49,7 @@ func newSecretListCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			targets := make([]sshx.Target, 0, len(hosts))
-			for _, h := range hosts {
-				targets = append(targets, targetFor(h))
-			}
+			targets := targetsFor(hosts)
 
 			tbl := output.Table{Headers: []string{"HOST", "STACK", "FILE", "MODE", "BYTES"}}
 			var found int

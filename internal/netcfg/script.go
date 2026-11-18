@@ -3,6 +3,8 @@ package netcfg
 import (
 	"fmt"
 	"strings"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // Markers the remote scripts print so the outcome can be reported precisely.
@@ -22,11 +24,6 @@ const ConfirmPath = "/run/hlab-netcfg-confirmed"
 // and be short enough that an operator is not left waiting on a machine that
 // has already gone. Ninety seconds covers both.
 const RollbackSeconds = 90
-
-// shellQuote renders a value as a single-quoted shell word.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
 
 // netplanYAML renders a netplan file pinning one interface to a static address.
 func netplanYAML(iface, address, gateway string, dns, search []string) string {
@@ -300,15 +297,15 @@ func BuildStaticScript(p Plan) (string, error) {
 	}
 
 	return strings.NewReplacer(
-		"__CONFIRM__", shellQuote(ConfirmPath),
-		"__MANAGER__", shellQuote(p.Manager),
-		"__IFACE__", shellQuote(p.Interface),
-		"__TARGET__", shellQuote(target),
-		"__PAYLOAD__", shellQuote(payload),
-		"__ADDR__", shellQuote(p.Address),
-		"__GW__", shellQuote(p.Gateway),
-		"__DNS__", shellQuote(strings.Join(p.DNS, ",")),
-		"__SEARCH__", shellQuote(strings.Join(p.Search, ",")),
+		"__CONFIRM__", shellword.Quote(ConfirmPath),
+		"__MANAGER__", shellword.Quote(p.Manager),
+		"__IFACE__", shellword.Quote(p.Interface),
+		"__TARGET__", shellword.Quote(target),
+		"__PAYLOAD__", shellword.Quote(payload),
+		"__ADDR__", shellword.Quote(p.Address),
+		"__GW__", shellword.Quote(p.Gateway),
+		"__DNS__", shellword.Quote(strings.Join(p.DNS, ",")),
+		"__SEARCH__", shellword.Quote(strings.Join(p.Search, ",")),
 		"__ROLLBACK__", fmt.Sprint(RollbackSeconds),
 		"__M_ARMED__", MarkerArmed,
 		"__M_APPLIED__", MarkerApplied,
@@ -362,7 +359,7 @@ func BuildWiFiScript(p Plan) (string, error) {
 	}
 
 	return strings.NewReplacer(
-		"__CONFIRM__", shellQuote(ConfirmPath),
+		"__CONFIRM__", shellword.Quote(ConfirmPath),
 		"__ROLLBACK__", fmt.Sprint(RollbackSeconds),
 		"__M_ARMED__", MarkerArmed,
 		"__M_APPLIED__", MarkerApplied,

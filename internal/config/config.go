@@ -15,6 +15,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/cl-tim/homelab-cli/internal/health"
 	"github.com/cl-tim/homelab-cli/internal/inventory"
 )
 
@@ -54,9 +55,11 @@ func (e hostEntry) resolve() inventory.Host {
 
 // File is the on-disk shape of the config file.
 type File struct {
-	Defaults Defaults            `yaml:"defaults"`
-	Hosts    []hostEntry         `yaml:"hosts"`
-	Groups   map[string][]string `yaml:"groups"`
+	Ignored   []string                     `yaml:"ignored,omitempty"`
+	Endpoints map[string][]health.Endpoint `yaml:"endpoints,omitempty"`
+	Defaults  Defaults                     `yaml:"defaults"`
+	Hosts     []hostEntry                  `yaml:"hosts"`
+	Groups    map[string][]string          `yaml:"groups"`
 
 	// Discovered is a section written by earlier builds, when scan results
 	// lived separately from the inventory. It is still read so those configs
@@ -78,10 +81,12 @@ type LegacyDiscoveredHost struct {
 
 // Config is a loaded, validated configuration.
 type Config struct {
+	Ignored []string
 	// Path is where the config was read from, or "" if defaults were used.
 	Path      string
 	Defaults  Defaults
 	Inventory *inventory.Inventory
+	Endpoints map[string][]health.Endpoint
 }
 
 // builtinDefaults are used for any field left unset in the file.
@@ -137,6 +142,8 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("invalid inventory in %s: %w", where, err)
 	}
 	cfg.Inventory = inv
+	cfg.Endpoints = file.Endpoints
+	cfg.Ignored = file.Ignored
 
 	return cfg, nil
 }

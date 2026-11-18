@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // logsTemplate fetches the logs of a container or a systemd unit.
@@ -72,18 +72,15 @@ func newLogsCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			targets := make([]sshx.Target, 0, len(hosts))
-			for _, h := range hosts {
-				targets = append(targets, targetFor(h))
-			}
+			targets := targetsFor(hosts)
 
 			sinceD, sinceJ := "", ""
 			if since != "" {
-				sinceD = "--since " + shellQuoteArg(since)
-				sinceJ = "--since " + shellQuoteArg(since)
+				sinceD = "--since " + shellword.Quote(since)
+				sinceJ = "--since " + shellword.Quote(since)
 			}
 			script := strings.NewReplacer(
-				"__NAME__", shellQuoteArg(name),
+				"__NAME__", shellword.Quote(name),
 				"__LINES__", fmt.Sprint(lines),
 				"__SINCE_D__", sinceD,
 				"__SINCE_J__", sinceJ,
@@ -121,11 +118,6 @@ func newLogsCmd(a *app) *cobra.Command {
 	f.StringVar(&since, "since", "", "only entries newer than this, e.g. 1h or 2026-07-27")
 	f.StringVar(&grep, "grep", "", "only lines containing this, matched case-insensitively")
 	return cmd
-}
-
-// shellQuoteArg renders a value as a single-quoted shell word.
-func shellQuoteArg(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func splitLines(s string) []string {

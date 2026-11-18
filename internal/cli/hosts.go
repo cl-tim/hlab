@@ -55,7 +55,7 @@ func newHostsCmd(a *app) *cobra.Command {
 	cmd.Aliases = []string{"host"}
 
 	cmd.AddCommand(newHostsListCmd(a), newHostsGroupsCmd(a),
-		newHostsRenameCmd(a), newHostsPruneCmd(a))
+		newHostsRenameCmd(a), newHostsPruneCmd(a), newHostsHistoryCmd(a))
 	return cmd
 }
 
@@ -91,8 +91,8 @@ func newHostsListCmd(a *app) *cobra.Command {
 
 			if len(hosts) == 0 {
 				fmt.Fprintln(a.errOut, "Nothing to show.")
-				fmt.Fprintln(a.errOut, "Find what is on your network with: hlab discover scan")
-				fmt.Fprintln(a.errOut, "Then bring machines under management with: hlab discover scan --adopt")
+				fmt.Fprintln(a.errOut, "Find what is on your network with: hlab discover")
+				fmt.Fprintln(a.errOut, "Then bring machines under management with: hlab discover --enroll")
 				return &ExitError{Code: 1}
 			}
 

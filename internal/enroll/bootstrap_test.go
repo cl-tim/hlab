@@ -3,6 +3,8 @@ package enroll
 import (
 	"strings"
 	"testing"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 const testKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITEST hlab management key"
@@ -117,8 +119,8 @@ func TestShellQuoteEscapesSingleQuotes(t *testing.T) {
 		{"", `''`},
 	}
 	for _, tc := range tests {
-		if got := shellQuote(tc.in); got != tc.want {
-			t.Errorf("shellQuote(%q) = %s, want %s", tc.in, got, tc.want)
+		if got := shellword.Quote(tc.in); got != tc.want {
+			t.Errorf("shellword.Quote(%q) = %s, want %s", tc.in, got, tc.want)
 		}
 	}
 }

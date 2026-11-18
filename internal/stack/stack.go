@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // RemoteDir is where stacks live on a managed machine.
@@ -187,16 +189,16 @@ func BuildDeployScript(name string, compose []byte, assets []Asset) (string, err
 		seen[asset.Name] = struct{}{}
 
 		fmt.Fprintf(&b, "printf '%%s' %s > \"$DIR\"/%s\n",
-			shellQuote(string(asset.Content)), shellQuote(asset.Name))
-		fmt.Fprintf(&b, "chmod 0640 \"$DIR\"/%s\n", shellQuote(asset.Name))
+			shellword.Quote(string(asset.Content)), shellword.Quote(asset.Name))
+		fmt.Fprintf(&b, "chmod 0640 \"$DIR\"/%s\n", shellword.Quote(asset.Name))
 	}
 
 	// Assets are substituted in the same pass as everything else, and
 	// NewReplacer does not rescan what it has written, so content that happens
 	// to contain a marker is left alone.
 	return strings.NewReplacer(
-		"__DIR__", shellQuote(RemoteDir+"/"+name),
-		"__COMPOSE__", shellQuote(string(compose)),
+		"__DIR__", shellword.Quote(RemoteDir+"/"+name),
+		"__COMPOSE__", shellword.Quote(string(compose)),
 		"__ASSETS__", b.String(),
 		"__M_NO_DOCKER__", MarkerNoDocker,
 		"__M_DEPLOYED__", MarkerDeployed,
@@ -239,10 +241,6 @@ func ValidateName(name string) error {
 		}
 	}
 	return nil
-}
-
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // ContainerState is one container's state as compose reports it.

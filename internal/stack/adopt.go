@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"path"
 	"strings"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // Markers the adopt script prints so a partial run can be described exactly.
@@ -184,17 +186,17 @@ func BuildAdoptScript(o AdoptOptions) (string, error) {
 		}
 		seen[asset.Name] = struct{}{}
 		fmt.Fprintf(&b, "printf '%%s' %s > %s\n",
-			shellQuote(string(asset.Content)), shellQuote(asset.Name))
-		fmt.Fprintf(&b, "chmod 0640 %s\n", shellQuote(asset.Name))
+			shellword.Quote(string(asset.Content)), shellword.Quote(asset.Name))
+		fmt.Fprintf(&b, "chmod 0640 %s\n", shellword.Quote(asset.Name))
 	}
 
 	return strings.NewReplacer(
-		"__SRC__", shellQuote(o.SourceDir),
-		"__DST__", shellQuote(dst),
-		"__PARENT__", shellQuote(RemoteDir),
-		"__ORIG__", shellQuote(original),
+		"__SRC__", shellword.Quote(o.SourceDir),
+		"__DST__", shellword.Quote(dst),
+		"__PARENT__", shellword.Quote(RemoteDir),
+		"__ORIG__", shellword.Quote(original),
 		"__CARRY__", carryFlag(o.CarriesData),
-		"__COMPOSE__", shellQuote(string(o.Compose)),
+		"__COMPOSE__", shellword.Quote(string(o.Compose)),
 		"__ASSETS__", b.String(),
 		"__M_NO_DOCKER__", MarkerNoDocker,
 		"__M_STOPPED__", MarkerStopped,
@@ -313,9 +315,9 @@ func BuildRenameScript(oldName, newName string, compose []byte) (string, error) 
 	}
 
 	return strings.NewReplacer(
-		"__OLD__", shellQuote(RemoteDir+"/"+oldName),
-		"__NEW__", shellQuote(RemoteDir+"/"+newName),
-		"__COMPOSE__", shellQuote(string(compose)),
+		"__OLD__", shellword.Quote(RemoteDir+"/"+oldName),
+		"__NEW__", shellword.Quote(RemoteDir+"/"+newName),
+		"__COMPOSE__", shellword.Quote(string(compose)),
 		"__M_NO_DOCKER__", MarkerNoDocker,
 		"__M_STOPPED__", MarkerStopped,
 		"__M_MOVED__", MarkerMoved,

@@ -10,6 +10,8 @@ package secrets
 import (
 	"fmt"
 	"strings"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // StackDir is where a stack's files live on a managed machine.
@@ -156,8 +158,8 @@ func BuildGenerateScript(o Options) (string, error) {
 	}
 
 	return strings.NewReplacer(
-		"__DIR__", shellQuote(StackDir+"/"+o.Stack),
-		"__FILE__", shellQuote(StackDir+"/"+o.Stack+"/"+o.File),
+		"__DIR__", shellword.Quote(StackDir+"/"+o.Stack),
+		"__FILE__", shellword.Quote(StackDir+"/"+o.Stack+"/"+o.File),
 		"__LENGTH__", fmt.Sprint(length),
 		"__FORCE__", force,
 		"__WRITE__", write,
@@ -172,8 +174,8 @@ func BuildSetScript(o Options) (string, error) {
 		return "", err
 	}
 	return strings.NewReplacer(
-		"__DIR__", shellQuote(StackDir+"/"+o.Stack),
-		"__FILE__", shellQuote(StackDir+"/"+o.Stack+"/"+o.File),
+		"__DIR__", shellword.Quote(StackDir+"/"+o.Stack),
+		"__FILE__", shellword.Quote(StackDir+"/"+o.Stack+"/"+o.File),
 		"__WRITE__", write,
 		"__M_WRITTEN__", MarkerWritten,
 	).Replace(setTemplate), nil
@@ -193,7 +195,7 @@ func (o Options) writeStep() (string, error) {
 	if err := ValidateKey(o.Key); err != nil {
 		return "", err
 	}
-	return strings.ReplaceAll(envWrite, "__KEY__", shellQuote(o.Key)), nil
+	return strings.ReplaceAll(envWrite, "__KEY__", shellword.Quote(o.Key)), nil
 }
 
 // ListScript reports the secrets a machine holds, and never their values.
@@ -253,7 +255,7 @@ if [ "$(id -u 2>/dev/null)" != 0 ] && command -v sudo >/dev/null 2>&1; then
     SUDO='sudo -n'
   fi
 fi
-FILE=` + shellQuote(StackDir+"/"+stack+"/"+file) + `
+FILE=` + shellword.Quote(StackDir+"/"+stack+"/"+file) + `
 if [ ! -f "$FILE" ]; then
   echo '` + MarkerMissing + `'
   exit 0
@@ -316,8 +318,4 @@ func ValidateKey(key string) error {
 		}
 	}
 	return nil
-}
-
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

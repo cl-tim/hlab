@@ -11,6 +11,8 @@ package backup
 import (
 	"fmt"
 	"strings"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // RemoteDir is the directory backed up on each machine.
@@ -51,7 +53,7 @@ func excludeArgs() string {
 	var b strings.Builder
 	for _, pattern := range Excluded {
 		b.WriteString(" --exclude=")
-		b.WriteString(shellQuote(pattern))
+		b.WriteString(shellword.Quote(pattern))
 	}
 	return b.String()
 }
@@ -99,9 +101,9 @@ printf '__M_END__\n'
 func BuildArchiveScript() string {
 	parent, base := split(RemoteDir)
 	return strings.NewReplacer(
-		"__DIR__", shellQuote(RemoteDir),
-		"__PARENT__", shellQuote(parent),
-		"__BASE__", shellQuote(base),
+		"__DIR__", shellword.Quote(RemoteDir),
+		"__PARENT__", shellword.Quote(parent),
+		"__BASE__", shellword.Quote(base),
 		"__EXCLUDE__", excludeArgs(),
 		"__M_BEGIN__", MarkerBegin,
 		"__M_END__", MarkerEnd,
@@ -199,8 +201,8 @@ func BuildRestoreScript(sha256sum, stamp string) (string, error) {
 	parent, _ := split(RemoteDir)
 	return strings.NewReplacer(
 		"__DIR__", RemoteDir,
-		"__PARENT__", shellQuote(parent),
-		"__SUM__", shellQuote(sha256sum),
+		"__PARENT__", shellword.Quote(parent),
+		"__SUM__", shellword.Quote(sha256sum),
 		"__STAMP__", stamp,
 		"__M_RESTORED__", MarkerRestored,
 	).Replace(restoreTemplate), nil
@@ -213,8 +215,4 @@ func split(path string) (parent, base string) {
 		return "/", strings.TrimPrefix(path, "/")
 	}
 	return path[:i], path[i+1:]
-}
-
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

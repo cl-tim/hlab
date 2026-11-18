@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // SudoMode controls what the management account is allowed to do.
@@ -167,10 +169,10 @@ func BuildBootstrapScript(username, authorizedKey string, mode SudoMode) (string
 	}
 
 	return strings.NewReplacer(
-		"__USER__", shellQuote(username),
-		"__KEY__", shellQuote(authorizedKey),
-		"__SUDO_MODE__", shellQuote(string(mode)),
-		"__COMMENT__", shellQuote(AccountComment),
+		"__USER__", shellword.Quote(username),
+		"__KEY__", shellword.Quote(authorizedKey),
+		"__SUDO_MODE__", shellword.Quote(string(mode)),
+		"__COMMENT__", shellword.Quote(AccountComment),
 		"__SUDOERS__", SudoersFragment,
 		"__M_USER_CREATED__", markerUserCreated,
 		"__M_USER_EXISTS__", markerUserExists,
@@ -180,9 +182,4 @@ func BuildBootstrapScript(username, authorizedKey string, mode SudoMode) (string
 		"__M_KEY_PRESENT__", markerKeyPresent,
 		"__M_DONE__", markerDone,
 	).Replace(bootstrapTemplate), nil
-}
-
-// shellQuote renders a value as a single-quoted shell word.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

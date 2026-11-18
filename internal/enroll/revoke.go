@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"golang.org/x/crypto/ssh"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // AccountComment is the GECOS comment the bootstrap gives the account it
@@ -162,10 +164,10 @@ func BuildRevokeScript(opts RevokeOptions) (string, error) {
 	}
 
 	return strings.NewReplacer(
-		"__USER__", shellQuote(opts.User),
-		"__BLOB__", shellQuote(opts.KeyBlob),
+		"__USER__", shellword.Quote(opts.User),
+		"__BLOB__", shellword.Quote(opts.KeyBlob),
 		"__REMOVE__", remove,
-		"__COMMENT__", shellQuote(AccountComment),
+		"__COMMENT__", shellword.Quote(AccountComment),
 		"__SUDOERS__", SudoersFragment,
 		"__M_KEY_REMOVED__", MarkerKeyRemoved,
 		"__M_KEY_ABSENT__", MarkerKeyAbsent,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cl-tim/homelab-cli/internal/health"
 	"github.com/cl-tim/homelab-cli/internal/inventory"
 	"github.com/cl-tim/homelab-cli/internal/output"
 	"github.com/cl-tim/homelab-cli/internal/sshx"
@@ -16,6 +17,7 @@ import (
 func newUpdateCmd(a *app) *cobra.Command {
 	var (
 		apply    bool
+		rolling  bool
 		allowNew bool
 		reboot   bool
 		pkgsOnly bool
@@ -58,6 +60,10 @@ func newUpdateCmd(a *app) *cobra.Command {
 				return fmt.Errorf("--packages and --images are the two halves; pass neither to get both")
 			}
 
+			if rolling && !apply {
+				return fmt.Errorf("--rolling requires --apply")
+			}
+
 			statuses, err := a.checkUpdates(cmd.Context(), hosts)
 			if err != nil {
 				return err
@@ -69,11 +75,19 @@ func newUpdateCmd(a *app) *cobra.Command {
 			if !apply {
 				return a.summariseUpdates(statuses)
 			}
-			return a.applyUpdates(cmd.Context(), hosts, statuses, !imgsOnly, !pkgsOnly, allowNew, reboot)
+			if rolling {
+				for _, status := range statuses {
+					if status.Err != "" {
+						return fmt.Errorf("rolling update requires a successful update check on %s", status.Host)
+					}
+				}
+			}
+			return a.applyUpdates(cmd.Context(), hosts, statuses, !imgsOnly, !pkgsOnly, allowNew, reboot, rolling)
 		},
 	}
 
 	f := cmd.Flags()
+	f.BoolVar(&rolling, "rolling", false, "verify host health and configured endpoints before updating the next host")
 	f.BoolVar(&apply, "apply", false, "actually install the updates; without it nothing is changed")
 	f.BoolVar(&allowNew, "allow-new", false,
 		"let apt install new packages so held-back kernel updates can proceed; it still never removes one")
@@ -92,10 +106,7 @@ func (a *app) checkUpdates(ctx context.Context, hosts []inventory.Host) ([]updat
 		return nil, err
 	}
 
-	targets := make([]sshx.Target, 0, len(hosts))
-	for _, h := range hosts {
-		targets = append(targets, targetFor(h))
-	}
+	targets := targetsFor(hosts)
 	return updates.NewChecker(exec).Check(ctx, targets), nil
 }
 
@@ -204,7 +215,7 @@ func (a *app) summariseUpdates(statuses []updates.Status) error {
 // notices.
 func (a *app) applyUpdates(
 	ctx context.Context, hosts []inventory.Host, statuses []updates.Status,
-	doPkgs, doImgs, allowNew, reboot bool,
+	doPkgs, doImgs, allowNew, reboot, rolling bool,
 ) error {
 	pending := map[string]updates.Status{}
 	for _, s := range statuses {
@@ -236,13 +247,19 @@ func (a *app) applyUpdates(
 		hostFailed := false
 
 		if wantPkgs {
-			if err := a.runUpdateStep(ctx, dialer, h, "packages", updates.BuildUpgradeScript(allowNew)); err != nil {
+			needsReboot, err := a.runUpdateStep(ctx, dialer, h, "packages", updates.BuildUpgradeScript(allowNew))
+			if err != nil {
 				fmt.Fprintf(a.errOut, "  packages failed: %v\n", err)
 				hostFailed = true
+			} else if needsReboot {
+				wantReboot = reboot
+				if !reboot {
+					fmt.Fprintf(a.errOut, "  %s now needs a reboot\n", h.Name)
+				}
 			}
 		}
 		if wantImgs && !hostFailed {
-			if err := a.runUpdateStep(ctx, dialer, h, "images", updates.BuildImageScript()); err != nil {
+			if _, err := a.runUpdateStep(ctx, dialer, h, "images", updates.BuildImageScript()); err != nil {
 				fmt.Fprintf(a.errOut, "  images failed: %v\n", err)
 				hostFailed = true
 			}
@@ -254,6 +271,25 @@ func (a *app) applyUpdates(
 			if err := a.rebootHost(ctx, dialer, h, a.cfg.Inventory.Hosts(), false); err != nil {
 				fmt.Fprintf(a.errOut, "  reboot failed: %v\n", err)
 				hostFailed = true
+			}
+		}
+
+		if rolling && !hostFailed {
+			reports, err := a.collectHealth(ctx, []inventory.Host{h}, health.DefaultThresholds())
+			if err != nil {
+				return err
+			}
+			for _, report := range reports {
+				if report.Err != "" || report.Partial || report.Worst() == health.Fail {
+					hostFailed = true
+					fmt.Fprintln(a.errOut, "  health check failed")
+					if report.Err != "" {
+						fmt.Fprintln(a.errOut, "  "+report.Err)
+					}
+					for _, finding := range report.Findings {
+						fmt.Fprintf(a.errOut, "  %s: %s\n", finding.Check, finding.Detail)
+					}
+				}
 			}
 		}
 
@@ -275,29 +311,26 @@ func (a *app) applyUpdates(
 // runUpdateStep runs one script on one machine and reports what it said.
 func (a *app) runUpdateStep(
 	ctx context.Context, dialer *sshx.Dialer, h inventory.Host, what, script string,
-) error {
+) (bool, error) {
 	res, err := runPrivilegedOn(ctx, dialer, targetFor(h), script)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	switch {
 	case strings.Contains(res.Stdout, updates.MarkerNoop):
 		fmt.Fprintf(a.errOut, "  %s: nothing to do\n", what)
-		return nil
+		return false, nil
 	case strings.Contains(res.Stdout, updates.MarkerUpgraded):
 		fmt.Fprintf(a.errOut, "  %s: done\n", what)
-		if strings.Contains(res.Stdout, "reboot:required") {
-			fmt.Fprintf(a.errOut, "  %s now needs a reboot; hlab will not take one for you\n", h.Name)
-		}
-		return nil
+		return strings.Contains(res.Stdout, "reboot:required"), nil
 	}
 
 	msg := firstNonEmptyLine(res.Stderr)
 	if msg == "" {
 		msg = fmt.Sprintf("exited %d without reporting success", res.ExitCode)
 	}
-	return fmt.Errorf("%s", strings.TrimPrefix(msg, "hlab:error "))
+	return false, fmt.Errorf("%s", strings.TrimPrefix(msg, "hlab:error "))
 }
 
 func countOrBlank(n int) string {

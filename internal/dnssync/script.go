@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 // Markers the scripts print.
@@ -222,7 +224,7 @@ curl -s -G "$API/zones/records/add" --data-urlencode "token=$T" `+
 			`--data-urlencode "domain=%s" --data-urlencode "zone=%s" --data-urlencode "type=A" `+
 			`--data-urlencode "ttl=300" --data-urlencode "ipAddress=%s" --data-urlencode "overwrite=true" `+
 			`| sed -n 's/.*"status":"\([^"]*\)".*/\1/p'
-`, shellQuote(c.Name), c.Name, zone, c.Address)
+`, shellword.Quote(c.Name), c.Name, zone, c.Address)
 	}
 
 	for _, r := range reservations {
@@ -234,7 +236,7 @@ curl -s -G "$API/dhcp/scopes/addReservedLease" --data-urlencode "token=$T" `+
 			`--data-urlencode "name=%s" --data-urlencode "hardwareAddress=%s" `+
 			`--data-urlencode "ipAddress=%s" --data-urlencode "hostName=%s" `+
 			`| sed -n 's/.*"status":"\([^"]*\)".*/\1/p'
-`, shellQuote(r.Name), zone, r.MAC, r.Address, r.Name)
+`, shellword.Quote(r.Name), zone, r.MAC, r.Address, r.Name)
 	}
 
 	b.WriteString("echo '" + MarkerDone + "'\n")
@@ -243,7 +245,7 @@ curl -s -G "$API/dhcp/scopes/addReservedLease" --data-urlencode "token=$T" `+
 
 func preamble() string {
 	return strings.NewReplacer(
-		"__PWPATH__", shellQuote(PasswordPath),
+		"__PWPATH__", shellword.Quote(PasswordPath),
 		"__M_NOAUTH__", MarkerNoAuth,
 	).Replace(apiPreamble)
 }
@@ -310,8 +312,4 @@ func validMAC(mac string) bool {
 		}
 	}
 	return true
-}
-
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }

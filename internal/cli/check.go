@@ -1,14 +1,15 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"sort"
 
 	"github.com/spf13/cobra"
 
 	"github.com/cl-tim/homelab-cli/internal/health"
+	"github.com/cl-tim/homelab-cli/internal/inventory"
 	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
 )
 
 func newCheckCmd(a *app) *cobra.Command {
@@ -40,28 +41,13 @@ func newCheckCmd(a *app) *cobra.Command {
 				return err
 			}
 
-			exec, err := a.newExecutor()
-			if err != nil {
-				return err
-			}
-			targets := make([]sshx.Target, 0, len(hosts))
-			for _, h := range hosts {
-				targets = append(targets, targetFor(h))
-			}
-
 			thresholds := health.DefaultThresholds()
 			thresholds.DiskPercent = diskPct
 			thresholds.Restarts = restarts
-
-			reports := make([]health.Report, 0, len(hosts))
-			for _, r := range exec.Run(cmd.Context(), targets, health.CheckScript) {
-				if r.Err != nil {
-					reports = append(reports, health.Report{Host: r.Host, Err: r.Err.Error()})
-					continue
-				}
-				reports = append(reports, health.Parse(r.Host, r.Stdout, thresholds))
+			reports, err := a.collectHealth(cmd.Context(), hosts, thresholds)
+			if err != nil {
+				return err
 			}
-			sort.Slice(reports, func(i, j int) bool { return reports[i].Host < reports[j].Host })
 
 			return a.reportHealth(reports, quiet)
 		},
@@ -74,6 +60,36 @@ func newCheckCmd(a *app) *cobra.Command {
 		"restart count above which a container is treated as crash-looping")
 	f.BoolVar(&quiet, "quiet", false, "only show machines with something wrong")
 	return cmd
+}
+
+func (a *app) collectHealth(ctx context.Context, hosts []inventory.Host, thresholds health.Thresholds) ([]health.Report, error) {
+	exec, err := a.newExecutor()
+	if err != nil {
+		return nil, err
+	}
+	reports := make([]health.Report, 0, len(hosts))
+	for _, r := range exec.Run(ctx, targetsFor(hosts), health.CheckScript) {
+		if !r.OK() {
+			message := fmt.Sprintf("check exited with status %d", r.ExitCode)
+			if r.Err != nil {
+				message = r.Err.Error()
+			}
+			reports = append(reports, health.Report{Host: r.Host, Err: message})
+			continue
+		}
+		report := health.Parse(r.Host, r.Stdout, thresholds)
+		for _, endpoint := range a.cfg.Endpoints[r.Host] {
+			if err := endpoint.Probe(ctx); err != nil {
+				report.Findings = append(report.Findings, health.Finding{
+					Check: "endpoint", Severity: health.Fail,
+					Detail: fmt.Sprintf("%s: %v", endpoint.Name, err),
+				})
+			}
+		}
+		reports = append(reports, report)
+	}
+	sort.Slice(reports, func(i, j int) bool { return reports[i].Host < reports[j].Host })
+	return reports, nil
 }
 
 // reportHealth renders the outcome and decides the exit code.

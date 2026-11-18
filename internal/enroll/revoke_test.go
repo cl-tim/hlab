@@ -3,6 +3,8 @@ package enroll
 import (
 	"strings"
 	"testing"
+
+	"github.com/cl-tim/homelab-cli/internal/shellword"
 )
 
 const testBlob = "AAAAC3NzaC1lZDI1NTE5AAAAIGt1c3RvbWtleWJvZHlmb3J0ZXN0aW5nb25seQ=="
@@ -31,7 +33,7 @@ func TestBootstrapAndRevokeAgreeOnWhatHlabCreated(t *testing.T) {
 		t.Fatalf("BuildRevokeScript: %v", err)
 	}
 
-	quoted := shellQuote(AccountComment)
+	quoted := shellword.Quote(AccountComment)
 	for name, script := range map[string]string{"bootstrap": boot, "revoke": revoke} {
 		if !strings.Contains(script, quoted) {
 			t.Errorf("%s does not use the account comment %s", name, quoted)

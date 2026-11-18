@@ -18,16 +18,18 @@ import (
 const defaultScanConcurrency = 256
 
 func newDiscoverCmd(a *app) *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "discover",
-		Short: "Find machines that are not yet under management",
-	}
-	cmd.AddCommand(newDiscoverScanCmd(a))
+	cmd := newDiscoverScanCmd(a, true)
+	cmd.Use = "discover [target...]"
+	legacy := newDiscoverScanCmd(a, false)
+	legacy.Hidden = true
+	cmd.AddCommand(legacy)
 	return cmd
 }
 
-func newDiscoverScanCmd(a *app) *cobra.Command {
+func newDiscoverScanCmd(a *app, onboardByDefault bool) *cobra.Command {
 	var (
+		legacyAdopt   bool
+		scanOnly      bool
 		ports         []int
 		probeTimeout  time.Duration
 		bannerTimeout time.Duration
@@ -42,21 +44,38 @@ func newDiscoverScanCmd(a *app) *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "scan [target...]",
-		Short: "Sweep the network for machines with SSH open",
+		Short: "Find machines with SSH open and offer to enroll them",
 		Long: "Probes a range of addresses for reachable SSH ports, reads each server's\n" +
 			"identification banner, resolves its name, and reports which machines are\n" +
 			"already in your inventory and which are not.\n\n" +
 			"Targets may be given as a CIDR block (192.0.2.0/24), a single address,\n" +
 			"a range (192.0.2.10-192.0.2.50), or the last-octet shorthand\n" +
 			"(192.0.2.10-50). With no target, the local IPv4 subnets are scanned.\n\n" +
-			"This only opens and closes TCP connections — it does not authenticate,\n" +
-			"and it changes nothing on the machines it finds.",
-		Example: "  hlab discover scan\n" +
-			"  hlab discover scan 192.0.2.0/24\n" +
-			"  hlab discover scan 198.51.100.0/24 --ports 22,2222\n" +
-			"  hlab discover scan 192.0.2.0/24 --new --emit >> homelab.yaml",
+			"In a terminal, discovery offers to enroll each unmanaged machine.\n" +
+			"Use --scan-only to skip enrollment. Structured output and --emit also scan only.",
+		Example: "  hlab discover\n" +
+			"  hlab discover 192.0.2.0/24\n" +
+			"  hlab discover 198.51.100.0/24 --ports 22,2222\n" +
+			"  hlab discover 192.0.2.0/24 --new --emit >> homelab.yaml",
 		Args: cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			enrolling := adopt || legacyAdopt
+			if scanOnly && enrolling {
+				return fmt.Errorf("--scan-only cannot be used with --enroll")
+			}
+			if onboardByDefault && !cmd.Flags().Changed("enroll") && !scanOnly && !emit && !a.format.Structured() {
+				enrolling = enrolling || newPrompter(a.in, a.errOut).interactive()
+			}
+			if enrolling && emit {
+				return fmt.Errorf("--enroll cannot be used with --emit")
+			}
+			if enrolling {
+				if err := a.validateEnrollment(enrollOpts); err != nil {
+					return err
+				}
+			} else if enrollOpts.syncAfter {
+				return fmt.Errorf("--sync requires interactive enrollment")
+			}
 			specs := args
 			if len(specs) == 0 {
 				local, err := discover.LocalSubnets()
@@ -111,6 +130,16 @@ func newDiscoverScanCmd(a *app) *cobra.Command {
 			}
 			known := discover.BuildKnownHosts(cmd.Context(), addressByName, 2*time.Second)
 			annotateFromInventory(results, a.cfg.Inventory, known)
+			for i := range results {
+				r := &results[i]
+				if r.Managed {
+					continue
+				}
+				r.Ignored = a.isIgnored(candidateFromScan(*r))
+				if h, ok := a.cfg.Inventory.Host(known[r.Address]); ok && h.Port == r.Port {
+					r.Ignored = r.Ignored || a.isIgnored(candidateFromHost(h))
+				}
+			}
 
 			if save {
 				diff, err := config.MergeObservations(
@@ -132,19 +161,22 @@ func newDiscoverScanCmd(a *app) *cobra.Command {
 
 			if emit {
 				return discover.EmitInventory(a.out, discover.Unmanaged(results),
-					taken, "hlab discover scan "+strings.Join(specs, " "), time.Now())
+					taken, "hlab discover "+strings.Join(specs, " "), time.Now())
 			}
 
-			if adopt {
+			if enrolling {
 				var fresh []candidate
 				for _, r := range discover.Unmanaged(results) {
+					if !enrollOpts.includeIgnored && r.Ignored {
+						continue
+					}
 					fresh = append(fresh, candidateFromScan(r))
 				}
 				if err := a.renderScan(results, len(addrs)); err != nil {
 					return err
 				}
 				if len(fresh) == 0 {
-					fmt.Fprintln(a.errOut, "\nNothing new to enrol.")
+					fmt.Fprintln(a.errOut, "\nNo eligible machines to enroll.")
 					return nil
 				}
 				fmt.Fprintf(a.errOut, "\nEnrolling %d unmanaged machine(s).\n", len(fresh))
@@ -164,7 +196,10 @@ func newDiscoverScanCmd(a *app) *cobra.Command {
 	f.BoolVar(&onlyNew, "new", false, "show only machines that are not in the inventory")
 	f.BoolVar(&save, "save", true, "record what was found in the config")
 	f.BoolVar(&emit, "emit", false, "print inventory YAML for the new machines instead of a table")
-	f.BoolVar(&adopt, "adopt", false, "after scanning, ask about each unmanaged machine and enrol the ones you accept")
+	f.BoolVar(&scanOnly, "scan-only", false, "scan without offering enrollment")
+	f.BoolVar(&adopt, "enroll", false, "offer to enroll unmanaged machines found by the scan")
+	f.BoolVar(&legacyAdopt, "adopt", false, "alias for --enroll")
+	_ = f.MarkHidden("adopt")
 	enrollOpts.register(f)
 
 	return cmd
@@ -234,13 +269,16 @@ func (a *app) renderScan(results []discover.Result, scanned int) error {
 	}
 
 	tbl := output.Table{Headers: []string{"ADDRESS", "PORT", "HOSTNAME", "OS", "SSH", "MANAGED", "SINCE LAST SCAN"}}
-	var managed, changed, fresh int
+	var managed, ignored, changed, fresh int
 
 	for _, r := range results {
 		managedCell := "no"
 		if r.Managed {
 			managedCell = "yes"
 			managed++
+		} else if r.Ignored {
+			managedCell = "ignored"
+			ignored++
 		}
 
 		status := "-"
@@ -264,12 +302,9 @@ func (a *app) renderScan(results []discover.Result, scanned int) error {
 		return err
 	}
 
-	unmanaged := len(results) - managed
-	fmt.Fprintf(a.out, "\n%d responded, %d managed, %d unmanaged, %d new, %d changed\n",
-		len(results), managed, unmanaged, fresh, changed)
-	if unmanaged > 0 {
-		fmt.Fprintln(a.errOut, "Bring them under management with: hlab discover scan --adopt")
-	}
+	unmanaged := len(results) - managed - ignored
+	fmt.Fprintf(a.out, "\n%d responded, %d managed, %d unmanaged, %d ignored, %d new, %d changed\n",
+		len(results), managed, unmanaged, ignored, fresh, changed)
 	return nil
 }
 

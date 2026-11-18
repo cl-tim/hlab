@@ -22,6 +22,7 @@ func newStackCmd(a *app) *cobra.Command {
 	}
 	cmd.AddCommand(
 		newStackListCmd(a),
+		newStackDiffCmd(a),
 		newStackPullCmd(a),
 		newStackAdoptCmd(a),
 		newStackRenameCmd(a),
@@ -33,15 +34,16 @@ func newStackCmd(a *app) *cobra.Command {
 
 func newStackDeployCmd(a *app) *cobra.Command {
 	var (
-		file   string
-		name   string
-		apply  bool
-		force  bool
-		withFn []string
+		file      string
+		name      string
+		apply     bool
+		force     bool
+		syncAfter bool
+		withFn    []string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "deploy <host>",
+		Use:   "deploy <host> [project]",
 		Short: "Push a compose file to a machine and bring the stack up",
 		Long: "Copies a compose file to " + stack.RemoteDir + "/<name> on the machine and runs\n" +
 			"`docker compose up -d`.\n\n" +
@@ -55,17 +57,20 @@ func newStackDeployCmd(a *app) *cobra.Command {
 			"place instead of being hand-written on the machine.\n\n" +
 			"Deploying is repeatable: an unchanged stack is a no-op.\n\n" +
 			"Nothing is done unless --apply is given.",
-		Example: "  hlab stack deploy apps-1 --file technitium.yaml\n" +
+		Example: "  hlab stack deploy apps-1 technitium --apply --sync\n" +
+			"  hlab stack deploy apps-1 --file technitium.yaml\n" +
 			"  hlab stack deploy apps-1 --file caddy.yaml --with Caddyfile --apply",
-		Args: cobra.ExactArgs(1),
+		Args: cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" {
-				return fmt.Errorf("--file is required")
+			if syncAfter && !apply {
+				return fmt.Errorf("--sync requires --apply")
 			}
-			if name == "" {
-				name = strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+			project := ""
+			if len(args) == 2 {
+				project = args[1]
 			}
-			if err := stack.ValidateName(name); err != nil {
+			file, name, err := resolveDeploySource(config.Home(), project, file, name)
+			if err != nil {
 				return err
 			}
 
@@ -79,7 +84,7 @@ func newStackDeployCmd(a *app) *cobra.Command {
 				return err
 			}
 
-			hosts, err := a.managedHosts(args)
+			hosts, err := a.managedHosts(args[:1])
 			if err != nil {
 				return err
 			}
@@ -154,6 +159,20 @@ func newStackDeployCmd(a *app) *cobra.Command {
 			for _, s := range states {
 				fmt.Fprintf(a.out, "  %-28s %-16s %s\n", s.Name, s.Service, s.State)
 			}
+			if syncAfter {
+				exec, err := a.newExecutor()
+				if err != nil {
+					return fmt.Errorf("stack deployed, inventory refresh failed: %w", err)
+				}
+				snapshots := facts.NewCollector(exec).Collect(cmd.Context(), targetsFor(hosts))
+				if err := factsExitCode(snapshots); err != nil {
+					return fmt.Errorf("stack deployed, inventory refresh failed: %s", snapshots[0].Error)
+				}
+				if err := a.persistFacts(snapshots); err != nil {
+					return fmt.Errorf("stack deployed, inventory refresh failed: %w", err)
+				}
+				return nil
+			}
 			fmt.Fprintf(a.errOut, "\nRun `hlab sync %s` to record what is now running.\n", host.Name)
 			return nil
 		},
@@ -164,6 +183,7 @@ func newStackDeployCmd(a *app) *cobra.Command {
 	f.StringVar(&name, "name", "", "stack name (default: the compose file's base name)")
 	f.StringArrayVar(&withFn, "with", nil,
 		"extra file to deploy alongside the compose file, e.g. a Caddyfile; repeatable")
+	f.BoolVar(&syncAfter, "sync", false, "refresh the host inventory after deploying")
 	f.BoolVar(&apply, "apply", false, "actually deploy; without it nothing is changed")
 	f.BoolVar(&force, "force", false, "deploy even if the machine already listens on a published port")
 
@@ -174,6 +194,24 @@ func newStackDeployCmd(a *app) *cobra.Command {
 //
 // The listeners are passed in rather than read here so the decision can be
 // tested without a collected snapshot on disk.
+func resolveDeploySource(home, project, file, name string) (string, string, error) {
+	if project != "" {
+		if file != "" || name != "" {
+			return "", "", fmt.Errorf("pass a project name or --file/--name")
+		}
+		name = project
+		file = filepath.Join(home, stack.LocalDirName, project, "compose.yaml")
+	} else if file == "" {
+		return "", "", fmt.Errorf("pass a saved project name or --file")
+	} else if name == "" {
+		name = strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+	}
+	if err := stack.ValidateName(name); err != nil {
+		return "", "", err
+	}
+	return file, name, nil
+}
+
 func portConflicts(open []listeningPort, ports []stack.PublishedPort, own map[int]bool) []string {
 	if len(ports) == 0 {
 		return nil

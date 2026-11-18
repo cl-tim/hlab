@@ -196,20 +196,11 @@ func (a *app) managedTargets(args []string) ([]sshx.Target, error) {
 	managed := a.cfg.Inventory.Managed()
 	if len(managed) == 0 {
 		return nil, fmt.Errorf(
-			"no machines are under management yet; find them with `hlab discover scan` " +
+			"no machines are under management yet; find them with `hlab discover` " +
 				"and enrol them with `hlab enroll`")
 	}
 
-	targets := make([]sshx.Target, 0, len(managed))
-	for _, h := range managed {
-		targets = append(targets, sshx.Target{
-			Name:         h.Name,
-			Address:      h.Address,
-			Port:         h.Port,
-			User:         h.User,
-			IdentityFile: h.IdentityFile,
-		})
-	}
+	targets := targetsFor(managed)
 	return targets, nil
 }
 
@@ -220,8 +211,8 @@ func (a *app) selectTargets(expr string) ([]inventory.Host, []sshx.Target, error
 	}
 	if len(a.cfg.Inventory.Managed()) == 0 {
 		return nil, nil, fmt.Errorf(
-			"no machines are under management yet; find them with `hlab discover scan` " +
-				"and enrol them with `hlab discover scan --adopt`")
+			"no machines are under management yet; find them with `hlab discover` " +
+				"and enrol them with `hlab discover --enroll`")
 	}
 
 	hosts, skipped, err := a.cfg.Inventory.Select(expr)
@@ -240,17 +231,26 @@ func (a *app) selectTargets(expr string) ([]inventory.Host, []sshx.Target, error
 			len(skipped), strings.Join(names, ", "))
 	}
 
-	targets := make([]sshx.Target, 0, len(hosts))
-	for _, h := range hosts {
-		targets = append(targets, sshx.Target{
-			Name:         h.Name,
-			Address:      h.Address,
-			Port:         h.Port,
-			User:         h.User,
-			IdentityFile: h.IdentityFile,
-		})
-	}
+	targets := targetsFor(hosts)
 	return hosts, targets, nil
+}
+
+func targetFor(h inventory.Host) sshx.Target {
+	return sshx.Target{
+		Name:         h.Name,
+		Address:      h.Address,
+		Port:         h.Port,
+		User:         h.User,
+		IdentityFile: h.IdentityFile,
+	}
+}
+
+func targetsFor(hosts []inventory.Host) []sshx.Target {
+	targets := make([]sshx.Target, len(hosts))
+	for i, host := range hosts {
+		targets[i] = targetFor(host)
+	}
+	return targets
 }
 
 // newDialer builds a dialer with the configured host key policy and no

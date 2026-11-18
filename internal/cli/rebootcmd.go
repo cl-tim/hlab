@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
 )
 
 // rebootNeededScript reports whether a machine is asking to be restarted.
@@ -52,10 +51,7 @@ func newRebootCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			targets := make([]sshx.Target, 0, len(hosts))
-			for _, h := range hosts {
-				targets = append(targets, targetFor(h))
-			}
+			targets := targetsFor(hosts)
 
 			needed := map[string]bool{}
 			kernels := map[string]string{}
