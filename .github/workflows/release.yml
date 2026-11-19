@@ -1,0 +1,32 @@
+name: release
+
+# Pushing a tag like v0.1.0 builds every platform and publishes a GitHub
+# release. Nothing is released from a branch.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./...
+      - name: Build
+        run: make release VERSION="$GITHUB_REF_NAME"
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum hlab-* > SHA256SUMS
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --verify-tag --generate-notes

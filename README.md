@@ -24,8 +24,12 @@ docker-02   ok       0      388ms
 
 ## Install
 
-Requires Go 1.26+. A newer toolchain is fetched automatically if `go.mod` asks
-for one.
+Download a binary for your platform from the
+[releases page](https://github.com/cl-tim/hlab/releases), check it against
+`SHA256SUMS`, and put it on your PATH.
+
+Or build from a checkout. That requires Go 1.26+; a newer toolchain is fetched
+automatically if `go.mod` asks for one.
 
 ```powershell
 .\build.ps1 install     # Windows -> %LOCALAPPDATA%\Programs\hlab, added to PATH

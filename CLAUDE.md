@@ -32,9 +32,21 @@ Windows has no `make`; use `.\build.ps1 <task>` (build, test, check, release).
 The `Makefile` is for CI and Linux checkouts. `make race` / `go test -race`
 needs cgo, which is unavailable on this machine, so it cannot be run here.
 
-There is no CI: GitHub Actions was removed deliberately to avoid spending
-minutes on a private repo. Run `go vet`, `go test` and the cross-compile sweep
-locally before pushing — nothing else will.
+### CI and releases
+
+The repository is public, so GitHub Actions costs nothing; it was absent only
+while the repo was private.
+
+- `.github/workflows/build.yml` runs on every push to `main` and on pull
+  requests: gofmt, `go vet`, `go test -race`, and the cross-compile sweep. It
+  is the only place the race detector runs.
+- `.github/workflows/release.yml` runs when a `v*` tag is pushed: it tests,
+  builds every platform with the tag as the version, writes `SHA256SUMS`, and
+  publishes a GitHub release. To release: `git tag v0.1.0 && git push origin
+  v0.1.0`.
+
+CI runs after the push, so it reports a break rather than preventing one.
+Still run `go vet` and `go test` locally before pushing.
 
 ## Architecture
 
