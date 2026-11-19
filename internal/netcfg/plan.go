@@ -41,7 +41,7 @@ type Plan struct {
 	DNS     []string
 	// Search is the domain search list. It is carried across unchanged rather
 	// than dropped: without it a bare "printer-2" stops resolving even though
-	// "printer-2.example" still does, and everything configured by short name breaks
+	// "printer-2.lan" still does, and everything configured by short name breaks
 	// quietly at the moment DHCP stops supplying the domain.
 	Search []string
 	// Manager is the tool that owns this machine's configuration.

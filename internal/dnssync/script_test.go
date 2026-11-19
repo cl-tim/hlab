@@ -7,9 +7,9 @@ import (
 
 const zoneJSON = "hlab:json\n" +
 	`{"response":{"records":[` +
-	`{"name":"lan","type":"NS","rData":{"nameServer":"technitium.example"}},` +
-	`{"name":"printer-1.example","type":"A","rData":{"ipAddress":"198.51.100.58"}},` +
-	`{"name":"apps-1.example","type":"A","rData":{"ipAddress":"198.51.100.4"}}]},"status":"ok"}` +
+	`{"name":"lan","type":"NS","rData":{"nameServer":"technitium.lan"}},` +
+	`{"name":"printer-1.lan","type":"A","rData":{"ipAddress":"198.51.100.58"}},` +
+	`{"name":"apps-1.lan","type":"A","rData":{"ipAddress":"198.51.100.4"}}]},"status":"ok"}` +
 	"\nhlab:scope\n" +
 	`{"response":{"startingAddress":"198.51.100.50","endingAddress":"198.51.100.250",` +
 	`"reservedLeases":[{"hardwareAddress":"AA-BB-CC-DD-EE-02","address":"198.51.100.100"}]}}` +
@@ -23,7 +23,7 @@ func TestParseRecordsReadsNestedAddresses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ParseRecords: %v", err)
 	}
-	if got["printer-1.example"] != "198.51.100.58" || got["apps-1.example"] != "198.51.100.4" {
+	if got["printer-1.lan"] != "198.51.100.58" || got["apps-1.lan"] != "198.51.100.4" {
 		t.Errorf("records = %v", got)
 	}
 	if _, ok := got["lan"]; ok {
@@ -66,7 +66,7 @@ func TestZoneIsValidated(t *testing.T) {
 			t.Errorf("ValidateZone accepted %q", z)
 		}
 	}
-	for _, z := range []string{"lan", "home.arpa", "example-1.example"} {
+	for _, z := range []string{"lan", "home.arpa", "example-1.lan"} {
 		if err := ValidateZone(z); err != nil {
 			t.Errorf("ValidateZone rejected %q: %v", z, err)
 		}
@@ -76,8 +76,8 @@ func TestZoneIsValidated(t *testing.T) {
 // Nothing may be deleted: the zone is shared with every device DHCP registers.
 func TestSyncNeverDeletes(t *testing.T) {
 	script, err := BuildSyncScript("lan", []Change{
-		{Action: Create, Name: "a.example", Address: "198.51.100.9"},
-		{Action: Extra, Name: "iphone.example", Address: "198.51.100.62"},
+		{Action: Create, Name: "a.lan", Address: "198.51.100.9"},
+		{Action: Extra, Name: "iphone.lan", Address: "198.51.100.62"},
 	}, nil)
 	if err != nil {
 		t.Fatalf("BuildSyncScript: %v", err)
@@ -85,7 +85,7 @@ func TestSyncNeverDeletes(t *testing.T) {
 	if strings.Contains(script, "records/delete") || strings.Contains(script, "iphone") {
 		t.Error("the sync would remove a record it did not create")
 	}
-	if !strings.Contains(script, "a.example") {
+	if !strings.Contains(script, "a.lan") {
 		t.Error("the sync does not write the record it should")
 	}
 }
@@ -93,7 +93,7 @@ func TestSyncNeverDeletes(t *testing.T) {
 // Addresses and hardware addresses reach a root shell script.
 func TestMalformedValuesAreRefused(t *testing.T) {
 	if _, err := BuildSyncScript("lan", []Change{
-		{Action: Create, Name: "a.example", Address: "198.51.100.9; rm -rf /"},
+		{Action: Create, Name: "a.lan", Address: "198.51.100.9; rm -rf /"},
 	}, nil); err == nil {
 		t.Error("accepted an address that is not an address")
 	}

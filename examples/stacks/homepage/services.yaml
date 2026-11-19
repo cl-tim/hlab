@@ -1,11 +1,4 @@
-# Every href here has been checked against the running fleet rather than
-# guessed. `server`/`container` add live state from the Docker socket on
-# apps-1; `siteMonitor` and `ping` cover everything that runs elsewhere,
-# since Homepage only has one Docker socket to look at.
-#
-# Names are fully qualified on purpose. Technitium answers <host>.lan and not
-# the bare name, and this container gets Docker's ndots:0, which would try a
-# short name as absolute and never consult the search domain.
+# Example dashboard. Replace the reserved addresses and names with your own.
 - Infrastructure:
     - Technitium (primary):
         icon: technitium.png
@@ -124,9 +117,7 @@
         showStats: true
 
 - Media:
-    # These run on the machine called "docker" (198.51.100.20). Homepage reads
-    # only apps-1's socket, so their state comes from siteMonitor rather
-    # than from container status.
+    # Use siteMonitor for services on a different Docker host.
     - Plex:
         icon: plex.png
         href: http://media-1.example:32400/web

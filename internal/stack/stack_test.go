@@ -145,7 +145,7 @@ func TestParseContainerStates(t *testing.T) {
 // prompted this — is only reproducible if that file travels with it.
 func TestDeployWritesAssetsAlongsideTheComposeFile(t *testing.T) {
 	script, err := BuildDeployScript("caddy", []byte("services: {}\n"), []Asset{
-		{Name: "Caddyfile", Content: []byte("example.example {\n\treverse_proxy app:80\n}\n")},
+		{Name: "Caddyfile", Content: []byte("example.lan {\n\treverse_proxy app:80\n}\n")},
 	})
 	if err != nil {
 		t.Fatalf("BuildDeployScript: %v", err)

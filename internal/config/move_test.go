@@ -13,7 +13,7 @@ hosts:
     address: 192.0.2.50
     managed: true
     user: hlab
-  - name: host-192-0-2-61
+  - name: host-192-168-1-61
     address: 192.0.2.61
     managed: false
 `)
@@ -21,7 +21,7 @@ hosts:
 	if err != nil {
 		t.Fatalf("MoveHost: %v", err)
 	}
-	if absorbed != "host-192-0-2-61" {
+	if absorbed != "host-192-168-1-61" {
 		t.Errorf("absorbed = %q", absorbed)
 	}
 

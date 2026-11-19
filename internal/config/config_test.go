@@ -96,16 +96,16 @@ hosts:
 func TestAddressDefaultsToName(t *testing.T) {
 	path := writeConfig(t, `
 hosts:
-  - name: nas.example
+  - name: nas.lan
 `)
 
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	h, _ := cfg.Inventory.Host("nas.example")
-	if h.Address != "nas.example" {
-		t.Errorf("Address = %q, want nas.example", h.Address)
+	h, _ := cfg.Inventory.Host("nas.lan")
+	if h.Address != "nas.lan" {
+		t.Errorf("Address = %q, want nas.lan", h.Address)
 	}
 }
 

@@ -1,0 +1,67 @@
+# Example printerlab inventory.
+defaults:
+  # user is the account plab connects as; printerUser is the account that owns
+  # Klipper. Create the former with `plab firmware advanced setup-user`.
+  user: plab
+  printerUser: mks
+  port: 22
+  moonrakerPort: 7125
+  connectTimeout: 10s
+  concurrency: 4
+  # identityFile: ~/.ssh/id_ed25519
+  # apiKeyEnv: PLAB_MOONRAKER_API_KEY
+
+  # workspaceRoot creates a local Klippee folder for each printer.
+  klippee:
+    executable: klippee
+    workspaceRoot: C:\src\printer-workspaces
+
+  # MCU builds need clean upstream Klipper and Katapult checkouts. Downloads,
+  # firmware and rendered configuration default to PLAB_HOME/artifacts.
+  migration:
+    klipperDir: C:\src\klipper
+    katapultDir: C:\src\katapult
+    klipperRef: 214fdb2877ff4640e9316a663c1b8b2e232c86fd
+    moonrakerRef: 1cfb0c41e468645951a371621f06d32777b6107c
+    katapultRef: ec59b9bb9ad6c2ec8d4dc6831fbc77f0b308e29e
+    # WSL build alternative: wslDistro: Ubuntu, with /home/... source paths.
+    # artifactDir: C:\printer-migration\firmware
+    # configOutput: C:\printer-migration\generated-configs
+    sdcard: E:\
+
+printers:
+  - name: printer-a
+    address: stock-plus4.example
+    model: plus4
+    firmware: stock
+    tags: [plus4, stock]
+    # SSH bootstrap password environment variable; remove after key setup.
+    # identityFile: C:\Users\operator\.ssh\printer-a-plab-ed25519
+    # sshPasswordEnv: PRINTER_A_SSH_BOOTSTRAP_PASSWORD
+    # klippee.workspace may override the derived
+    # C:\src\printer-workspaces\printer-a directory.
+
+  - name: printer-b
+    address: mainline-plus4.example
+    model: plus4
+    firmware: mainline
+    tags: [plus4, mainline]
+    profile: mainline-klipper-beacon
+    components:
+      probe:
+        type: probe
+        manufacturer: Beacon
+        model: Rev H
+        configSection: beacon
+        source: Example only; replace with the installed probe identity.
+    migration:
+      # Optional custom profile directory:
+      # profileDir: C:\printer-migration\custom-profile
+      # This printer's Beacon device:
+      beaconSerial: /dev/serial/by-id/usb-Beacon_Beacon_RevH_CHANGE_ME-if00
+      # sdcard: F:\
+    # klippee:
+    #   workspace: D:\printer-configs\printer-b
+
+groups:
+  plus4: [printer-a, printer-b]

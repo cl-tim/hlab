@@ -52,7 +52,7 @@ func TestCandidateFromScanResult(t *testing.T) {
 	c := candidateFromScan(discover.Result{
 		Address:  "198.51.100.5",
 		Port:     2222,
-		Hostname: "box.example",
+		Hostname: "box.lan",
 		OS:       "Ubuntu",
 		Software: "OpenSSH_9.6p1",
 	})
@@ -80,7 +80,7 @@ func TestCandidateSuggestedName(t *testing.T) {
 	}
 
 	// A fresh sighting is named from reverse DNS, avoiding a collision.
-	fresh := candidate{Address: "198.51.100.2", Hostname: "pi.example"}
+	fresh := candidate{Address: "198.51.100.2", Hostname: "pi.lan"}
 	if got := fresh.suggestedName(inv); got != "pi-2" {
 		t.Errorf("suggestedName = %q, want pi-2 to avoid the existing pi", got)
 	}

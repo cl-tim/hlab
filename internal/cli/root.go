@@ -14,6 +14,7 @@ import (
 	"github.com/cl-tim/homelab-cli/internal/config"
 	"github.com/cl-tim/homelab-cli/internal/inventory"
 	"github.com/cl-tim/homelab-cli/internal/output"
+	printercli "github.com/cl-tim/homelab-cli/internal/printerlab/cli"
 	"github.com/cl-tim/homelab-cli/internal/sshx"
 )
 
@@ -121,6 +122,7 @@ func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	f.BoolVar(&a.insecureHostKey, "insecure-host-key", false, "skip SSH host key verification (unsafe; for bootstrapping only)")
 
 	root.AddCommand(
+		printercli.NewCommand(stdin, stdout, stderr),
 		newVersionCmd(a),
 		newConfigCmd(a),
 		newDiscoverCmd(a),

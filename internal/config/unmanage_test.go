@@ -18,7 +18,7 @@ hosts:
     managed: true
     user: hlab
     identityFile: /keys/id_hlab
-    hostname: a.example
+    hostname: a.lan
     kernel: 6.6.0
   - name: b
     address: 198.51.100.2
@@ -56,7 +56,7 @@ groups:
 	if a.Managed {
 		t.Error("a is still managed")
 	}
-	if a.Hostname != "a.example" || a.Kernel != "6.6.0" {
+	if a.Hostname != "a.lan" || a.Kernel != "6.6.0" {
 		t.Errorf("observations lost: %+v", a)
 	}
 

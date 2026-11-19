@@ -55,7 +55,7 @@ func EmitInventory(w io.Writer, results []Result, taken map[string]struct{}, com
 func suggestName(r Result, claimed map[string]struct{}) string {
 	base := ""
 	if r.Hostname != "" {
-		// Use the first DNS label: "nas-01.example." -> "nas-01".
+		// Use the first DNS label: "nas-01.lan." -> "nas-01".
 		label, _, _ := strings.Cut(r.Hostname, ".")
 		base = sanitiseName(label)
 	}

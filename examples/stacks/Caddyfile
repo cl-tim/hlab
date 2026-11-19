@@ -9,7 +9,7 @@
 # runs on. Without that, nothing resolves and none of this is reachable.
 {
 	# Automatic HTTPS is off because these are internal names: no public CA
-	# can validate .lan, so Caddy would retry ACME forever and serve nothing.
+	# can validate .example, so Caddy would retry ACME forever and serve nothing.
 	#
 	# To use TLS internally, delete this line and add `tls internal` to each
 	# site below, publish 443 in the compose file, and install Caddy's root

@@ -17,8 +17,8 @@ func TestEmitInventoryRoundTripsThroughTheConfigLoader(t *testing.T) {
 	// The whole point of --emit is that its output can be pasted into a config,
 	// so it has to survive the loader, including KnownFields(true).
 	results := []Result{
-		{Address: "192.0.2.10", Port: 22, Hostname: "nas-01.example", Banner: "SSH-2.0-OpenSSH_9.2p1 Debian-2", OS: "Debian"},
-		{Address: "192.0.2.20", Port: 2222, Hostname: "docker-01.example", Banner: "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3", OS: "Ubuntu"},
+		{Address: "192.0.2.10", Port: 22, Hostname: "nas-01.lan", Banner: "SSH-2.0-OpenSSH_9.2p1 Debian-2", OS: "Debian"},
+		{Address: "192.0.2.20", Port: 2222, Hostname: "docker-01.lan", Banner: "SSH-2.0-OpenSSH_9.6p1 Ubuntu-3", OS: "Ubuntu"},
 		{Address: "192.0.2.30", Port: 22},
 	}
 
@@ -69,7 +69,7 @@ func TestEmitInventoryRoundTripsThroughTheConfigLoader(t *testing.T) {
 
 func TestEmitInventoryAvoidsNameCollisions(t *testing.T) {
 	results := []Result{
-		{Address: "192.0.2.10", Port: 22, Hostname: "nas-01.example"},
+		{Address: "192.0.2.10", Port: 22, Hostname: "nas-01.lan"},
 		{Address: "192.0.2.11", Port: 22, Hostname: "nas-01.other"},
 	}
 	taken := map[string]struct{}{"nas-01": {}}
@@ -96,7 +96,7 @@ func TestEmitInventoryNeutralisesHostileBanners(t *testing.T) {
 	results := []Result{{
 		Address:  "192.0.2.10",
 		Port:     22,
-		Hostname: "evil.example",
+		Hostname: "evil.lan",
 		Banner:   "SSH-2.0-x\ntags: [pwned]\nuser: root\n  - name: injected",
 	}}
 
@@ -181,8 +181,8 @@ func TestAnnotateMarksManagedHosts(t *testing.T) {
 
 func TestAnnotateMatchesByHostname(t *testing.T) {
 	// The inventory may refer to a machine by a DNS name that did not resolve.
-	results := []Result{{Address: "192.0.2.10", Hostname: "nas.example"}}
-	known := KnownHosts{"nas.example": "nas-01"}
+	results := []Result{{Address: "192.0.2.10", Hostname: "nas.lan"}}
+	known := KnownHosts{"nas.lan": "nas-01"}
 
 	Annotate(results, known)
 

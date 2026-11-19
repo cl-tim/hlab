@@ -77,14 +77,14 @@ func TestFindDuplicatesByAddressOnAnotherHostsInterface(t *testing.T) {
 		dualHomed("pi", "192.0.2.119", true),
 		// A bare scan record for the same machine's other NIC: no interface
 		// data of its own, so only the cross-reference can catch it.
-		{Name: "host-192-0-2-26", Address: "192.0.2.26"},
+		{Name: "host-192-168-1-26", Address: "192.0.2.26"},
 	}
 
 	groups := FindDuplicates(hosts)
 	if len(groups) != 1 {
 		t.Fatalf("groups = %d, want 1: %+v", len(groups), groups)
 	}
-	if groups[0].Keep.Name != "pi" || groups[0].Remove[0].Name != "host-192-0-2-26" {
+	if groups[0].Keep.Name != "pi" || groups[0].Remove[0].Name != "host-192-168-1-26" {
 		t.Errorf("group = %+v", groups[0])
 	}
 	if !strings.Contains(groups[0].Reason, "interface of") {

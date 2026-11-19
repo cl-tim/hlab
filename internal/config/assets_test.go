@@ -60,14 +60,14 @@ func TestMergeObservationsDetectsChanges(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 
 	if _, err := MergeObservations(path, []Observation{
-		{Address: "198.51.100.1", Hostname: "box.example", OS: "Debian", Banner: "SSH-2.0-OpenSSH_9.6p1"},
+		{Address: "198.51.100.1", Hostname: "box.lan", OS: "Debian", Banner: "SSH-2.0-OpenSSH_9.6p1"},
 	}, scanOne); err != nil {
 		t.Fatalf("first scan: %v", err)
 	}
 
 	// The machine's SSH has been upgraded since.
 	diff, err := MergeObservations(path, []Observation{
-		{Address: "198.51.100.1", Hostname: "box.example", OS: "Debian", Banner: "SSH-2.0-OpenSSH_10.0p2"},
+		{Address: "198.51.100.1", Hostname: "box.lan", OS: "Debian", Banner: "SSH-2.0-OpenSSH_10.0p2"},
 	}, scanTwo)
 	if err != nil {
 		t.Fatalf("second scan: %v", err)
@@ -86,7 +86,7 @@ func TestMergeObservationsDetectsChanges(t *testing.T) {
 
 	// An identical rescan reports no change.
 	diff, err = MergeObservations(path, []Observation{
-		{Address: "198.51.100.1", Hostname: "box.example", OS: "Debian", Banner: "SSH-2.0-OpenSSH_10.0p2"},
+		{Address: "198.51.100.1", Hostname: "box.lan", OS: "Debian", Banner: "SSH-2.0-OpenSSH_10.0p2"},
 	}, scanTwo)
 	if err != nil {
 		t.Fatalf("third scan: %v", err)
@@ -110,7 +110,7 @@ func TestMergeObservationsPreservesManagement(t *testing.T) {
 	}
 
 	if _, err := MergeObservations(path, []Observation{
-		{Address: "198.51.100.1", Hostname: "nas.example", OS: "Debian", Banner: "SSH-2.0-OpenSSH_9.2p1"},
+		{Address: "198.51.100.1", Hostname: "nas.lan", OS: "Debian", Banner: "SSH-2.0-OpenSSH_9.2p1"},
 	}, scanOne); err != nil {
 		t.Fatalf("MergeObservations: %v", err)
 	}
@@ -139,12 +139,12 @@ func TestMergeObservationsPreservesManagement(t *testing.T) {
 }
 
 func TestMergeObservationsMatchesRecordsByDNSName(t *testing.T) {
-	// A hand-written host recorded as "nas.example" must be recognised when the
+	// A hand-written host recorded as "nas.lan" must be recognised when the
 	// scan finds its IP, rather than creating a duplicate record.
 	path := filepath.Join(t.TempDir(), "config.yaml")
 
 	if err := AddHost(path, inventory.Host{
-		Name: "nas-01", Address: "nas.example", Managed: true, User: "hlab",
+		Name: "nas-01", Address: "nas.lan", Managed: true, User: "hlab",
 	}); err != nil {
 		t.Fatalf("AddHost: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestMergeObservationsMatchesRecordsByDNSName(t *testing.T) {
 		t.Fatalf("hosts = %d, want 1 (no duplicate): %+v", got, cfg.Inventory.Hosts())
 	}
 	h, _ := cfg.Inventory.Host("nas-01")
-	if h.Address != "nas.example" {
+	if h.Address != "nas.lan" {
 		t.Errorf("address = %q, want the configured name kept", h.Address)
 	}
 	if h.OS != "Debian" {
@@ -240,7 +240,7 @@ hosts:
 discovered:
   - address: 198.51.100.50
     port: 22
-    hostname: printer.example
+    hostname: printer.lan
     os: Debian
     firstSeen: 2026-07-01T00:00:00Z
     lastSeen: 2026-07-01T00:00:00Z
@@ -464,7 +464,7 @@ func TestMergeObservationsAvoidsNameCollisions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.yaml")
 
 	if _, err := MergeObservations(path, []Observation{
-		{Address: "198.51.100.1", Hostname: "pi.example"},
+		{Address: "198.51.100.1", Hostname: "pi.lan"},
 		{Address: "198.51.100.2", Hostname: "pi.other"},
 	}, scanOne); err != nil {
 		t.Fatalf("MergeObservations: %v", err)

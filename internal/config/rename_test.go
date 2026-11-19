@@ -94,7 +94,7 @@ func TestRenameHostRejectsCollisionsAndUnknowns(t *testing.T) {
 }
 
 func TestValidateHostName(t *testing.T) {
-	valid := []string{"pi", "pi-hole-2", "nas_01", "web.example", "a", "A1"}
+	valid := []string{"pi", "pi-hole-2", "nas_01", "web.lan", "a", "A1"}
 	for _, n := range valid {
 		if err := ValidateHostName(n); err != nil {
 			t.Errorf("ValidateHostName(%q) = %v, want nil", n, err)

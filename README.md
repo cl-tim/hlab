@@ -21,6 +21,21 @@ docker-02   ok       0      388ms
 2/2 ok
 ```
 
+## Klipper and QIDI printers
+
+`hlab printer` includes the Printerlab commands for Moonraker discovery,
+printer status, Klippee workspaces, and QIDI firmware maintenance.
+
+```powershell
+hlab printer printers
+hlab printer status
+hlab printer discover scan
+```
+
+Existing Printerlab installations can use the same printer inventory, journals,
+and credentials through `hlab printer`. See the
+[printer guide](internal/printerlab/README.md) for configuration and workflows.
+
 ## Status
 
 Early, but the core loop works end to end: discover machines, enrol them, then
@@ -263,7 +278,7 @@ hosts:
     user: hlab
     identityFile: ~/.config/hlab/id_hlab
     tags: [storage]
-    hostname: nas-01.example
+    hostname: nas-01.lan
     os: Debian
     banner: SSH-2.0-OpenSSH_10.0p2 Debian-7+deb13u4
     firstSeen: 2026-07-27T11:13:12+10:00

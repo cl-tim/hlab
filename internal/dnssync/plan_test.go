@@ -24,18 +24,18 @@ func TestOnlyManagedMachinesArePublished(t *testing.T) {
 	}
 
 	records, _ := DesiredRecords(hosts, "lan")
-	if len(records) != 1 || records[0].Name != "apps-1.example" {
-		t.Errorf("records = %+v, want just apps-1.example", records)
+	if len(records) != 1 || records[0].Name != "apps-1.lan" {
+		t.Errorf("records = %+v, want just apps-1.lan", records)
 	}
 }
 
 // A name in the zone that hlab does not know is far more likely to be a phone
 // than a mistake: DHCP registers every device on the network into it.
 func TestExtraRecordsAreReportedNeverRemoved(t *testing.T) {
-	want := []Record{{Name: "apps-1.example", Address: "198.51.100.4"}}
+	want := []Record{{Name: "apps-1.lan", Address: "198.51.100.4"}}
 	have := map[string]string{
-		"apps-1.example": "198.51.100.4",
-		"iphone.example": "198.51.100.62",
+		"apps-1.lan": "198.51.100.4",
+		"iphone.lan": "198.51.100.62",
 	}
 
 	plan := Diff("lan", want, have)
@@ -45,7 +45,7 @@ func TestExtraRecordsAreReportedNeverRemoved(t *testing.T) {
 
 	var extra int
 	for _, c := range plan.Changes {
-		if c.Action == Extra && c.Name == "iphone.example" {
+		if c.Action == Extra && c.Name == "iphone.lan" {
 			extra++
 		}
 	}
@@ -55,8 +55,8 @@ func TestExtraRecordsAreReportedNeverRemoved(t *testing.T) {
 }
 
 func TestDriftIsDetected(t *testing.T) {
-	want := []Record{{Name: "printer-1.example", Address: "198.51.100.58"}}
-	have := map[string]string{"printer-1.example": "198.51.100.199"}
+	want := []Record{{Name: "printer-1.lan", Address: "198.51.100.58"}}
+	have := map[string]string{"printer-1.lan": "198.51.100.199"}
 
 	plan := Diff("lan", want, have)
 	if !plan.Actionable() {

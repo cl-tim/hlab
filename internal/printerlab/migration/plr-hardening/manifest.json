@@ -1,0 +1,34 @@
+{
+  "schema": "qidi-plus4-plr-hardening/v1",
+  "version": 1,
+  "compatibility": {
+    "python": ">=3.7",
+    "virtual_sdcard": "QIDITECH/klipper vendor PLR source with strict anchor validation"
+  },
+  "assets": [
+    {
+      "source": "plr_checkpoint.py",
+      "target": "klipper-extra",
+      "mode": "0644",
+      "sha256": "2c25f9e188a8fea586535198cccd8a4323cbbc76b7016168d26267bff0643f24"
+    },
+    {
+      "source": "plr_checkpoint.py",
+      "target": "scripts",
+      "mode": "0644",
+      "sha256": "2c25f9e188a8fea586535198cccd8a4323cbbc76b7016168d26267bff0643f24"
+    },
+    {
+      "source": "generate_recovery.py",
+      "target": "scripts",
+      "mode": "0644",
+      "sha256": "e2d36939f4a9f36f651084978c9a9094e10b5def05659e821f20c1bb2a9aa5ee"
+    },
+    {
+      "source": "plr.sh.in",
+      "target": "wrapper-template",
+      "mode": "0755",
+      "sha256": "75b9376e6dbd7510ff1c78354f4aebfcb84ba16a04664d6ceac3dc468ef270d1"
+    }
+  ]
+}
