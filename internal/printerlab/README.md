@@ -91,8 +91,8 @@ printerlab:
 The section has its own `defaults` and `groups`. They are separate from the
 host ones on purpose: the account hlab uses on a server is not the account it
 uses on a printer, and `hlab run all` never reaches a printer.
-`hlab printer discover scan --emit` prints a `printers:` fragment to paste
-under `printerlab:`.
+`hlab printer discover scan --emit` prints the printers it finds as a
+`printerlab:` section, ready to merge into the config.
 
 ### Moving an existing inventory
 

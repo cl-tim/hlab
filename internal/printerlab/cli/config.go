@@ -27,6 +27,7 @@ const starterConfig = `defaults:
 
 # Discover printers with:
 #   hlab printer discover scan --emit
+# It prints a printerlab: section; move its printers into the list below.
 #
 # Add printers here:
 # printers:

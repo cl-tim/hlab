@@ -39,18 +39,7 @@ func newDiscoverCmd(a *app) *cobra.Command {
 				return err
 			}
 			if emit {
-				type inventoryFragment struct {
-					Printers []inventory.Printer `json:"printers" yaml:"printers"`
-				}
-				fragment := inventoryFragment{}
-				used := map[string]int{}
-				for _, result := range found {
-					name := discoveredName(result, used)
-					fragment.Printers = append(fragment.Printers, inventory.Printer{
-						Name: name, Address: result.Address, Firmware: inventory.FirmwareAuto,
-						MoonrakerPort: port, Tags: []string{"discovered"},
-					})
-				}
+				fragment := emitFragment(found, port)
 				format := a.format
 				if format == output.FormatTable {
 					format = output.FormatYAML
@@ -73,9 +62,32 @@ func newDiscoverCmd(a *app) *cobra.Command {
 	scan.Flags().IntVar(&port, "port", 7125, "Moonraker TCP port")
 	scan.Flags().IntVar(&concurrency, "probe-concurrency", 64, "concurrent probes")
 	scan.Flags().DurationVar(&timeout, "timeout", 750*time.Millisecond, "per-address timeout")
-	scan.Flags().BoolVar(&emit, "emit", false, "emit a YAML inventory fragment")
+	scan.Flags().BoolVar(&emit, "emit", false, "emit a `printerlab:` fragment for the hlab config")
 	command.AddCommand(scan)
 	return command
+}
+
+// inventoryFragment is what `discover scan --emit` prints: the printers
+// found, under the section of the hlab config they belong in, so the output
+// merges into config.yaml as it stands. The tag must stay config.SectionKey;
+// TestEmittedFragmentLoadsAsAnInventory holds it there.
+type inventoryFragment struct {
+	Printerlab struct {
+		Printers []inventory.Printer `json:"printers" yaml:"printers"`
+	} `json:"printerlab" yaml:"printerlab"`
+}
+
+func emitFragment(found []discover.Result, port int) inventoryFragment {
+	fragment := inventoryFragment{}
+	fragment.Printerlab.Printers = make([]inventory.Printer, 0, len(found))
+	used := map[string]int{}
+	for _, result := range found {
+		fragment.Printerlab.Printers = append(fragment.Printerlab.Printers, inventory.Printer{
+			Name: discoveredName(result, used), Address: result.Address, Firmware: inventory.FirmwareAuto,
+			MoonrakerPort: port, Tags: []string{"discovered"},
+		})
+	}
+	return fragment
 }
 
 var invalidName = regexp.MustCompile(`[^a-zA-Z0-9_-]+`)
