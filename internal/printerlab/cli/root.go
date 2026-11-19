@@ -8,24 +8,14 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cl-tim/hlab/internal/clikit"
 	"github.com/cl-tim/hlab/internal/output"
 	"github.com/cl-tim/hlab/internal/printerlab/config"
 	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
-type ExitError struct {
-	Code int
-	Err  error
-}
-
-func (e *ExitError) Error() string {
-	if e.Err != nil {
-		return e.Err.Error()
-	}
-	return fmt.Sprintf("exit status %d", e.Code)
-}
-
-func (e *ExitError) Unwrap() error { return e.Err }
+// ExitError is the exit-code error shared with the host commands.
+type ExitError = clikit.ExitError
 
 type app struct {
 	configPath      string
@@ -85,7 +75,7 @@ func NewCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	flags.BoolVarP(&a.yes, "yes", "y", false, "assume yes for operations that require approval")
 
 	root.AddCommand(
-		newVersionCmd(a),
+		clikit.NewVersionCmd(a.out, func() output.Format { return a.format }),
 		newConfigCmd(a),
 		newDiscoverCmd(a),
 		newPrintersCmd(a),

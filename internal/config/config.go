@@ -9,12 +9,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/cl-tim/hlab/internal/cfgkit"
 	"github.com/cl-tim/hlab/internal/health"
 	"github.com/cl-tim/hlab/internal/inventory"
 )
@@ -24,6 +23,9 @@ const EnvConfigPath = "HLAB_CONFIG"
 
 // EnvHome overrides the directory hlab stores everything in.
 const EnvHome = "HLAB_HOME"
+
+// Duration is the YAML duration shared with the printer config.
+type Duration = cfgkit.Duration
 
 // Defaults are applied to every host that does not override them.
 type Defaults struct {
@@ -93,7 +95,7 @@ type Config struct {
 func builtinDefaults() Defaults {
 	return Defaults{
 		Port:           22,
-		KnownHostsFile: defaultKnownHostsPath(),
+		KnownHostsFile: cfgkit.KnownHostsPath(),
 		ConnectTimeout: Duration(10 * time.Second),
 		Concurrency:    10,
 	}
@@ -103,7 +105,7 @@ func builtinDefaults() Defaults {
 // path is empty. A missing config file is not an error: it yields an empty
 // inventory so that `hlab config init` can bootstrap one.
 func Load(path string) (*Config, error) {
-	resolved, err := resolvePath(path)
+	resolved, err := cfgkit.ResolvePath(path, EnvConfigPath, SearchPaths())
 	if err != nil {
 		return nil, err
 	}
@@ -171,10 +173,10 @@ func mergeDefaults(base, over Defaults) Defaults {
 		out.Port = over.Port
 	}
 	if over.IdentityFile != "" {
-		out.IdentityFile = expandHome(over.IdentityFile)
+		out.IdentityFile = cfgkit.ExpandHome(over.IdentityFile)
 	}
 	if over.KnownHostsFile != "" {
-		out.KnownHostsFile = expandHome(over.KnownHostsFile)
+		out.KnownHostsFile = cfgkit.ExpandHome(over.KnownHostsFile)
 	}
 	if over.ConnectTimeout != 0 {
 		out.ConnectTimeout = over.ConnectTimeout
@@ -206,32 +208,9 @@ func applyHostDefaults(h inventory.Host, d Defaults) inventory.Host {
 	if h.IdentityFile == "" {
 		h.IdentityFile = d.IdentityFile
 	} else {
-		h.IdentityFile = expandHome(h.IdentityFile)
+		h.IdentityFile = cfgkit.ExpandHome(h.IdentityFile)
 	}
 	return h
-}
-
-// resolvePath picks the config file to read. An explicit path that does not
-// exist is an error; a missing file at a default location is not.
-func resolvePath(explicit string) (string, error) {
-	if explicit != "" {
-		if _, err := os.Stat(explicit); err != nil {
-			return "", fmt.Errorf("config file %s: %w", explicit, err)
-		}
-		return explicit, nil
-	}
-	if env := os.Getenv(EnvConfigPath); env != "" {
-		if _, err := os.Stat(env); err != nil {
-			return "", fmt.Errorf("config file %s (from %s): %w", env, EnvConfigPath, err)
-		}
-		return env, nil
-	}
-	for _, candidate := range SearchPaths() {
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
-		}
-	}
-	return "", nil
 }
 
 // Home returns the one directory hlab owns: everything it stores — the
@@ -242,21 +221,7 @@ func resolvePath(explicit string) (string, error) {
 // private key somewhere that could be committed.
 //
 // Override it with $HLAB_HOME.
-func Home() string {
-	if v := strings.TrimSpace(os.Getenv(EnvHome)); v != "" {
-		return v
-	}
-	// UserConfigDir is the per-OS convention and always lives under the user's
-	// home: ~/.config on Linux, ~/Library/Application Support on macOS,
-	// %AppData% on Windows.
-	if dir, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(dir, "hlab")
-	}
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".hlab")
-	}
-	return ".hlab"
-}
+func Home() string { return cfgkit.Home(EnvHome, "hlab") }
 
 // SearchPaths lists, in priority order, where hlab looks for its config when
 // none is given explicitly.
@@ -285,32 +250,4 @@ func DefaultPath() string {
 // --config pointing into a repository must not drag the key in after it.
 func ManagementKeyPath() string {
 	return filepath.Join(Home(), "id_hlab")
-}
-
-func defaultKnownHostsPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".ssh", "known_hosts")
-}
-
-// expandHome resolves a leading ~ to the user's home directory.
-func expandHome(p string) string {
-	if p == "" || (p[0] != '~') {
-		return p
-	}
-	if len(p) > 1 && p[1] != '/' && p[1] != filepath.Separator {
-		// ~otheruser is not supported; leave it alone.
-		return p
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return p
-	}
-	rest := strings.TrimLeft(p[1:], "/\\")
-	if runtime.GOOS == "windows" {
-		return filepath.Join(home, filepath.FromSlash(rest))
-	}
-	return filepath.Join(home, rest)
 }

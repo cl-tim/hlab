@@ -40,9 +40,13 @@ locally before pushing — nothing else will.
 
 ```
 cmd/hlab/            entry point; maps ExitError to a process exit code
-internal/cli/        cobra command tree, result rendering, exit codes
-internal/config/     YAML loading, defaults resolution, ~ expansion
-internal/inventory/  host model, groups, selector engine
+internal/cli/        cobra command tree, result rendering
+internal/clikit/     ExitError and `version`, shared by both command trees
+internal/config/     host config: YAML loading, defaults resolution
+internal/cfgkit/     home directory, config path resolution, ~ expansion, Duration
+internal/inventory/  host model, groups, the managed-only Select rule
+internal/selector/   the selector expression language (all, @group, #tag, glob, !)
+internal/printerlab/ `hlab printer`: its own cli, config, inventory and backends
 internal/discover/   network sweep, banner fingerprinting, inventory emission
 internal/enroll/     management key, remote bootstrap script, enrolment flow
 internal/facts/      remote collection script, snapshot parsing, tag inference
@@ -57,6 +61,33 @@ internal/buildinfo/  version metadata stamped via -ldflags
 Key boundary: `internal/sshx` does not import `internal/inventory`. It defines
 its own `Target` struct and the CLI maps between the two, so the transport and
 the fleet model stay independently changeable. Keep it that way.
+
+## Hosts and printers
+
+`hlab printer` began as a separate tool (plab) and lives under
+`internal/printerlab` with its own command tree, config file and inventory.
+The two halves are **separate inventories on shared plumbing**:
+
+- **Shared, with one implementation each**: the selector language
+  (`internal/selector`), exit codes and `version` (`internal/clikit`), home
+  and config-path resolution, `~` expansion and `Duration` (`internal/cfgkit`),
+  shell quoting (`internal/shellword`), rendering (`internal/output`). A fix
+  to any of these belongs in the shared package, never in one half.
+- **Deliberately separate**: the config files and their schemas, and the
+  transports. Printers are reached through Moonraker and the system `ssh`
+  binary, not `sshx`, and a printer is not a host record — it has no
+  `managed` flag, so `Inventory.Select`'s managed-only rule has nothing to
+  say about it. Do not fold printers into `hosts:` without a deliberate
+  decision and a migration.
+- **`plab` survives where it names existing data**: `%AppData%\plab`,
+  `PLAB_HOME`, `PLAB_CONFIG`, and the `plab` management account on printers.
+  Those are read in place; renaming them strands inventories, journals and
+  accounts that already exist.
+
+Both command trees return `clikit.ExitError` (aliased as `cli.ExitError` in
+each), so `main` unwraps one type. `hlab printer` has its own
+`PersistentPreRunE`, which is why a printer command never loads or creates
+the host config; `TestPrinterCommandsDoNotCreateTheHostConfig` guards that.
 
 ## Conventions
 
@@ -74,8 +105,9 @@ the fleet model stay independently changeable. Keep it that way.
   execution* with a non-zero `ExitCode`, not a `Result.Err`. `Err` means the
   host was unreachable or the command could not be started. Don't conflate them.
 - **Config**: the loader uses `KnownFields(true)`, so every new config key needs
-  a struct field or existing configs break. Durations use the `config.Duration`
-  wrapper, which accepts `"10s"` or a bare integer of seconds.
+  a struct field or existing configs break. Durations use the `cfgkit.Duration`
+  wrapper (aliased as `config.Duration`), which accepts `"10s"` or a bare
+  integer of seconds.
 
 ## Discovery
 

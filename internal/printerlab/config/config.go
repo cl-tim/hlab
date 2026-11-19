@@ -8,12 +8,11 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 	"time"
 
 	"go.yaml.in/yaml/v3"
 
+	"github.com/cl-tim/hlab/internal/cfgkit"
 	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
@@ -22,18 +21,9 @@ const (
 	EnvHome       = "PLAB_HOME"
 )
 
-type Duration time.Duration
-
-func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
-	value, err := time.ParseDuration(node.Value)
-	if err != nil {
-		return err
-	}
-	*d = Duration(value)
-	return nil
-}
-
-func (d Duration) Duration() time.Duration { return time.Duration(d) }
+// Duration is the YAML duration shared with the host config: "10s", or a bare
+// integer of seconds.
+type Duration = cfgkit.Duration
 
 type Defaults struct {
 	User           string   `yaml:"user"`
@@ -93,13 +83,13 @@ func builtinDefaults() Defaults {
 		MoonrakerPort:  7125,
 		ConnectTimeout: Duration(10 * time.Second),
 		Concurrency:    4,
-		KnownHostsFile: defaultKnownHostsPath(),
+		KnownHostsFile: cfgkit.KnownHostsPath(),
 		Klippee:        KlippeeDefaults{Executable: "klippee"},
 	}
 }
 
 func Load(explicit string) (*Config, error) {
-	path, err := resolvePath(explicit)
+	path, err := cfgkit.ResolvePath(explicit, EnvConfigPath, []string{DefaultPath()})
 	if err != nil {
 		return nil, err
 	}
@@ -140,10 +130,10 @@ func mergeDefaults(base, override Defaults) Defaults {
 		base.Port = override.Port
 	}
 	if override.IdentityFile != "" {
-		base.IdentityFile = expandHome(override.IdentityFile)
+		base.IdentityFile = cfgkit.ExpandHome(override.IdentityFile)
 	}
 	if override.KnownHostsFile != "" {
-		base.KnownHostsFile = expandHome(override.KnownHostsFile)
+		base.KnownHostsFile = cfgkit.ExpandHome(override.KnownHostsFile)
 	}
 	if override.MoonrakerPort != 0 {
 		base.MoonrakerPort = override.MoonrakerPort
@@ -158,7 +148,7 @@ func mergeDefaults(base, override Defaults) Defaults {
 		base.Concurrency = override.Concurrency
 	}
 	if override.FirmwareRepo != "" {
-		base.FirmwareRepo = expandHome(override.FirmwareRepo)
+		base.FirmwareRepo = cfgkit.ExpandHome(override.FirmwareRepo)
 	}
 	base.Migration = mergeMigration(base.Migration, override.Migration)
 	base.Klippee = mergeKlippee(base.Klippee, override.Klippee)
@@ -167,10 +157,10 @@ func mergeDefaults(base, override Defaults) Defaults {
 
 func mergeKlippee(base, override KlippeeDefaults) KlippeeDefaults {
 	if override.Executable != "" {
-		base.Executable = expandHome(override.Executable)
+		base.Executable = cfgkit.ExpandHome(override.Executable)
 	}
 	if override.WorkspaceRoot != "" {
-		base.WorkspaceRoot = expandHome(override.WorkspaceRoot)
+		base.WorkspaceRoot = cfgkit.ExpandHome(override.WorkspaceRoot)
 	}
 	return base
 }
@@ -189,19 +179,19 @@ func mergeMigration(base, override MigrationDefaults) MigrationDefaults {
 		base.WSLDistro = override.WSLDistro
 	}
 	if override.KlipperDir != "" {
-		base.KlipperDir = expandHome(override.KlipperDir)
+		base.KlipperDir = cfgkit.ExpandHome(override.KlipperDir)
 	}
 	if override.KatapultDir != "" {
-		base.KatapultDir = expandHome(override.KatapultDir)
+		base.KatapultDir = cfgkit.ExpandHome(override.KatapultDir)
 	}
 	if override.ArtifactDir != "" {
-		base.ArtifactDir = expandHome(override.ArtifactDir)
+		base.ArtifactDir = cfgkit.ExpandHome(override.ArtifactDir)
 	}
 	if override.ConfigOutput != "" {
-		base.ConfigOutput = expandHome(override.ConfigOutput)
+		base.ConfigOutput = cfgkit.ExpandHome(override.ConfigOutput)
 	}
 	if override.ProfileDir != "" {
-		base.ProfileDir = expandHome(override.ProfileDir)
+		base.ProfileDir = cfgkit.ExpandHome(override.ProfileDir)
 	}
 	if override.SDCard != "" {
 		base.SDCard = override.SDCard
@@ -241,7 +231,7 @@ func applyDefaults(printer inventory.Printer, defaults Defaults) inventory.Print
 	if printer.IdentityFile == "" {
 		printer.IdentityFile = defaults.IdentityFile
 	} else {
-		printer.IdentityFile = expandHome(printer.IdentityFile)
+		printer.IdentityFile = cfgkit.ExpandHome(printer.IdentityFile)
 	}
 	if printer.MoonrakerPort == 0 {
 		printer.MoonrakerPort = defaults.MoonrakerPort
@@ -260,7 +250,7 @@ func applyKlippeeDefaults(
 	name string,
 ) inventory.Klippee {
 	if klippee.Workspace != "" {
-		klippee.Workspace = expandHome(klippee.Workspace)
+		klippee.Workspace = cfgkit.ExpandHome(klippee.Workspace)
 	} else if defaults.Klippee.WorkspaceRoot != "" {
 		klippee.Workspace = filepath.Join(defaults.Klippee.WorkspaceRoot, name)
 	}
@@ -284,11 +274,11 @@ func applyMigrationDefaults(
 	if migration.ArtifactDir == "" {
 		migration.ArtifactDir = defaults.Migration.ArtifactDir
 	} else {
-		migration.ArtifactDir = expandHome(migration.ArtifactDir)
+		migration.ArtifactDir = cfgkit.ExpandHome(migration.ArtifactDir)
 	}
 	switch {
 	case migration.ConfigOutput != "":
-		migration.ConfigOutput = expandHome(migration.ConfigOutput)
+		migration.ConfigOutput = cfgkit.ExpandHome(migration.ConfigOutput)
 	case defaults.Migration.ConfigOutput != "":
 		// Each printer renders into its own directory. render-config refuses to
 		// overwrite an existing output, and two machines must never share a
@@ -298,7 +288,7 @@ func applyMigrationDefaults(
 	if migration.ProfileDir == "" {
 		migration.ProfileDir = defaults.Migration.ProfileDir
 	} else {
-		migration.ProfileDir = expandHome(migration.ProfileDir)
+		migration.ProfileDir = cfgkit.ExpandHome(migration.ProfileDir)
 	}
 	if migration.SDCard == "" {
 		migration.SDCard = defaults.Migration.SDCard
@@ -307,60 +297,8 @@ func applyMigrationDefaults(
 	return migration
 }
 
-func Home() string {
-	if value := strings.TrimSpace(os.Getenv(EnvHome)); value != "" {
-		return value
-	}
-	if dir, err := os.UserConfigDir(); err == nil {
-		return filepath.Join(dir, "plab")
-	}
-	if dir, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(dir, ".plab")
-	}
-	return ".plab"
-}
+// Home is where printer inventories, journals and artifacts live. It predates
+// the merge into hlab and is kept so existing data is read in place.
+func Home() string { return cfgkit.Home(EnvHome, "plab") }
 
 func DefaultPath() string { return filepath.Join(Home(), "config.yaml") }
-
-func resolvePath(explicit string) (string, error) {
-	if explicit != "" {
-		if _, err := os.Stat(explicit); err != nil {
-			return "", fmt.Errorf("config file %s: %w", explicit, err)
-		}
-		return explicit, nil
-	}
-	if fromEnv := os.Getenv(EnvConfigPath); fromEnv != "" {
-		if _, err := os.Stat(fromEnv); err != nil {
-			return "", fmt.Errorf("config file %s: %w", fromEnv, err)
-		}
-		return fromEnv, nil
-	}
-	path := DefaultPath()
-	if _, err := os.Stat(path); err == nil {
-		return path, nil
-	}
-	return "", nil
-}
-
-func expandHome(path string) string {
-	if path == "" || path[0] != '~' {
-		return path
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return path
-	}
-	rest := strings.TrimLeft(path[1:], "/\\")
-	if runtime.GOOS == "windows" {
-		return filepath.Join(home, filepath.FromSlash(rest))
-	}
-	return filepath.Join(home, rest)
-}
-
-func defaultKnownHostsPath() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".ssh", "known_hosts")
-}

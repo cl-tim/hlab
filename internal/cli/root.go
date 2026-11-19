@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/cl-tim/hlab/internal/clikit"
 	"github.com/cl-tim/hlab/internal/config"
 	"github.com/cl-tim/hlab/internal/inventory"
 	"github.com/cl-tim/hlab/internal/output"
@@ -18,20 +19,9 @@ import (
 	"github.com/cl-tim/hlab/internal/sshx"
 )
 
-// ExitError carries a specific process exit code up to main.
-type ExitError struct {
-	Code int
-	Err  error
-}
-
-func (e *ExitError) Error() string {
-	if e.Err != nil {
-		return e.Err.Error()
-	}
-	return fmt.Sprintf("exit status %d", e.Code)
-}
-
-func (e *ExitError) Unwrap() error { return e.Err }
+// ExitError carries a specific process exit code up to main. It is the same
+// type the printer commands return, so main handles one.
+type ExitError = clikit.ExitError
 
 // app holds state shared by every subcommand: the parsed global flags and the
 // loaded config.
@@ -123,7 +113,7 @@ func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 
 	root.AddCommand(
 		printercli.NewCommand(stdin, stdout, stderr),
-		newVersionCmd(a),
+		clikit.NewVersionCmd(a.out, func() output.Format { return a.format }),
 		newConfigCmd(a),
 		newDiscoverCmd(a),
 		newEnrollCmd(a),

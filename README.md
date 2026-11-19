@@ -863,9 +863,13 @@ exists only for first-run bootstrapping of machines you physically control.
 
 ```
 cmd/hlab/            entry point
-internal/cli/        cobra command tree, output rendering, exit codes
-internal/config/     config file loading, defaults resolution
-internal/inventory/  host model, groups, selector engine
+internal/cli/        cobra command tree, output rendering
+internal/clikit/     exit codes and `version`, shared with the printer commands
+internal/config/     host config loading, defaults resolution
+internal/cfgkit/     home directory, config path resolution, durations
+internal/inventory/  host model, groups, managed-only selection
+internal/selector/   selector expression language, shared with printers
+internal/printerlab/ `hlab printer` commands, inventory and backends
 internal/discover/   network sweep, banner fingerprinting, inventory emission
 internal/enroll/     management key, remote bootstrap script, enrolment flow
 internal/facts/      remote collection script, snapshot parsing, tag inference

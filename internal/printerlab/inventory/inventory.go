@@ -3,11 +3,12 @@ package inventory
 
 import (
 	"fmt"
-	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/cl-tim/hlab/internal/selector"
 )
 
 const (
@@ -154,90 +155,14 @@ func (i *Inventory) Printer(name string) (Printer, bool) {
 	return printer, ok
 }
 
+// Select resolves a selector expression. The expression language lives in
+// internal/selector, shared with the host inventory.
 func (i *Inventory) Select(expression string) ([]Printer, error) {
-	expression = strings.TrimSpace(expression)
-	if expression == "" {
-		return nil, fmt.Errorf("empty printer selector")
-	}
-	included := map[string]Printer{}
-	excluded := map[string]struct{}{}
-	for _, raw := range strings.Split(expression, ",") {
-		term := strings.TrimSpace(raw)
-		if term == "" {
-			continue
-		}
-		negated := strings.HasPrefix(term, "!")
-		if negated {
-			term = strings.TrimSpace(strings.TrimPrefix(term, "!"))
-		}
-		if term == "" {
-			return nil, fmt.Errorf("selector term %q is empty", raw)
-		}
-		matches, err := i.match(term)
-		if err != nil {
-			return nil, err
-		}
-		for _, printer := range matches {
-			if negated {
-				excluded[printer.Name] = struct{}{}
-			} else {
-				included[printer.Name] = printer
-			}
-		}
-	}
-	var selected []Printer
-	for name, printer := range included {
-		if _, skip := excluded[name]; !skip {
-			selected = append(selected, printer)
-		}
-	}
-	sort.Slice(selected, func(a, b int) bool { return selected[a].Name < selected[b].Name })
-	if len(selected) == 0 {
-		return nil, fmt.Errorf("selector %q matched no printers", expression)
-	}
-	return selected, nil
-}
-
-func (i *Inventory) match(term string) ([]Printer, error) {
-	switch {
-	case term == "all":
-		return i.Printers(), nil
-	case strings.HasPrefix(term, "@"):
-		name := strings.TrimPrefix(term, "@")
-		members, ok := i.groups[name]
-		if !ok {
-			return nil, fmt.Errorf("unknown group %q", name)
-		}
-		out := make([]Printer, 0, len(members))
-		for _, member := range members {
-			out = append(out, i.byName[member])
-		}
-		return out, nil
-	case strings.HasPrefix(term, "#"):
-		tag := strings.TrimPrefix(term, "#")
-		var out []Printer
-		for _, printer := range i.printers {
-			if printer.HasTag(tag) {
-				out = append(out, printer)
-			}
-		}
-		if len(out) == 0 {
-			return nil, fmt.Errorf("no printers carry tag %q", tag)
-		}
-		return out, nil
-	default:
-		if printer, ok := i.byName[term]; ok {
-			return []Printer{printer}, nil
-		}
-		var out []Printer
-		for _, printer := range i.printers {
-			if matched, err := path.Match(term, printer.Name); err == nil && matched {
-				out = append(out, printer)
-			}
-		}
-		if len(out) == 0 {
-			return nil, fmt.Errorf("unknown printer %q", term)
-		}
-		return out, nil
-	}
+	return selector.Set[Printer]{
+		Noun:   "printer",
+		Items:  i.printers,
+		Groups: i.groups,
+		Name:   func(p Printer) string { return p.Name },
+		HasTag: Printer.HasTag,
+	}.Select(expression)
 }

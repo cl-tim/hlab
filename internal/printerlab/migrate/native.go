@@ -15,6 +15,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 // nativeBackend runs workstation migration operations.
@@ -220,7 +222,7 @@ func (b *nativeBackend) capture(name string, args []string, input []byte) ([]byt
 	}
 	return raw, -1, err
 }
-func quote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'" }
+func quote(value string) string { return shellword.Quote(value) }
 func quoted(parts ...string) string {
 	values := make([]string, len(parts))
 	for i, v := range parts {

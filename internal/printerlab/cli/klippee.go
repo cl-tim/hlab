@@ -896,7 +896,7 @@ func (a *app) runKlippee(cmd *cobra.Command, printerName string, args ...string)
 		var commandError *klippee.CommandError
 		if errors.As(err, &commandError) {
 			// Klippee already streamed its own diagnostics. Preserve its exit
-			// status without printing a second generic error in cmd/plab.
+			// status without printing a second generic error in cmd/hlab.
 			return &ExitError{Code: commandError.Code}
 		}
 		return fmt.Errorf("%s: %w", printer.Name, err)

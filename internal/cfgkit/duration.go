@@ -1,4 +1,4 @@
-package config
+package cfgkit
 
 import (
 	"fmt"

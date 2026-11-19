@@ -190,25 +190,6 @@ func TestLoadNoConfigIsNotAnError(t *testing.T) {
 	}
 }
 
-func TestExpandHome(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("USERPROFILE", home)
-
-	got := expandHome("~/.ssh/id_ed25519")
-	want := filepath.Join(home, ".ssh", "id_ed25519")
-	if got != want {
-		t.Errorf("expandHome = %q, want %q", got, want)
-	}
-
-	if got := expandHome("/abs/path"); got != "/abs/path" {
-		t.Errorf("expandHome(/abs/path) = %q, want unchanged", got)
-	}
-	if got := expandHome(""); got != "" {
-		t.Errorf("expandHome(\"\") = %q, want empty", got)
-	}
-}
-
 func TestIdentityFileTildeExpansion(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

@@ -10,7 +10,6 @@ import (
 	"syscall"
 
 	"github.com/cl-tim/hlab/internal/cli"
-	printercli "github.com/cl-tim/hlab/internal/printerlab/cli"
 	"github.com/cl-tim/hlab/internal/printerlab/migrate"
 )
 
@@ -27,19 +26,13 @@ func main() {
 	}
 
 	if err := cli.Execute(ctx); err != nil {
+		// Host and printer commands return the same ExitError type.
 		var exitErr *cli.ExitError
 		if errors.As(err, &exitErr) {
 			if exitErr.Err != nil {
 				fmt.Fprintln(os.Stderr, "hlab:", exitErr.Err)
 			}
 			os.Exit(exitErr.Code)
-		}
-		var printerErr *printercli.ExitError
-		if errors.As(err, &printerErr) {
-			if printerErr.Err != nil {
-				fmt.Fprintln(os.Stderr, "hlab printer:", printerErr.Err)
-			}
-			os.Exit(printerErr.Code)
 		}
 		fmt.Fprintln(os.Stderr, "hlab:", err)
 		os.Exit(1)
