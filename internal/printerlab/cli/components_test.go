@@ -31,6 +31,8 @@ printers:
   - name: orange
     address: orange.invalid
     moonrakerURL: %q
+    model: voron-2.4
+    firmware: mainline
     tags: [voron]
     components:
       hotend.upgrade:

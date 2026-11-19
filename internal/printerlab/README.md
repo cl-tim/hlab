@@ -69,6 +69,40 @@ the account hlab uses on a server is not the one it uses on a printer, and
   moves it into the hlab config, comments included, backs the hlab config up
   first, and keeps the old file as `config.yaml.migrated`.
 
+### Add a Voron
+
+For a Voron running Klipper and Moonraker, add an entry to `printerlab.printers`.
+Set `model` to your build's model and add the `voron` tag for fleet selection.
+Use `firmware: mainline` for upstream Klipper or `firmware: auto` if unsure.
+
+```yaml
+- name: workshop-voron
+  address: voron.example
+  model: voron-2.4
+  firmware: mainline
+  tags: [voron]
+  # apiKeyEnv: VORON_MOONRAKER_API_KEY
+```
+
+The default Moonraker port is `7125`. Set `moonrakerPort` for a different
+direct port, or `moonrakerURL` to the API base URL when using a reverse proxy.
+Set `apiKeyEnv` if the endpoint requires a Moonraker API key. For SSH commands,
+set `user` and `printerUser` to the login and Klipper owner on the Voron host.
+
+```powershell
+hlab printer printers '#voron'
+hlab printer status workshop-voron
+hlab printer audit '#voron'
+hlab printer components capture workshop-voron --dry-run
+```
+
+`discover scan` finds reachable Moonraker endpoints. With `--emit`, fill in
+the model and tags after reviewing the generated entry. Klippee commands use
+the same workspace setup described below. Printer-side Klippee operations
+such as `printer-check` and `deploy` require a configured Klippee agent.
+The `firmware` commands, `refresh-agent`, `upgrade-agent`, and QIDI Box
+operations are specific to the QIDI Plus4.
+
 ## Discover and inspect
 
 ```powershell
@@ -107,6 +141,42 @@ and sensors it declares. That is evidence, not identity: a configured sensor
 type does not tell you which hotend is fitted, so record that with `set`.
 A capture never changes your records, replaces the previous snapshot, and
 saves nothing if any selected printer fails.
+
+## Job history and Spoolman
+
+```powershell
+hlab printer jobs history '#voron' --since 7d --limit 25
+hlab printer jobs history all -o json
+hlab printer spoolman status all
+```
+
+History reads Moonraker's most recent jobs, up to 50 per printer by default.
+`--since` filters by job start time. The report includes job status, print time,
+filament used in millimetres, and all spool IDs Moonraker recorded for each job.
+Jobs without recorded spool IDs have an empty spool column.
+
+Configure `[spoolman]` on each Moonraker instance to enable spool tracking.
+`spoolman status` shows the current spool ID, connection state, and queued
+usage reports. A mixed fleet can include printers where the endpoint is
+unavailable. History and Spoolman use the printer's existing Moonraker URL
+and authentication. See [Moonraker's Spoolman documentation](https://moonraker.readthedocs.io/en/latest/external_api/integrations/#spoolman).
+
+## Component maintenance
+
+```powershell
+hlab printer components set workshop-voron nozzle --type nozzle --model "0.4 mm brass"
+hlab printer maintenance set workshop-voron nozzle --interval-hours 100
+hlab printer maintenance record workshop-voron nozzle
+hlab printer maintenance due '#voron'
+```
+
+Set an interval on an existing component. After servicing or replacing the
+part, run `record` between jobs to save the service timestamp and the current
+Moonraker print-time total in the local inventory. `due` checks installed parts
+with an interval and uses print time accrued since each part was serviced.
+An interval without a baseline is `unrecorded`. An unavailable or reduced
+counter produces `unknown`. Re-record service after servicing the part if the
+Moonraker history totals have been reset. Print time comes from finalized jobs.
 
 ## Klippee workspaces
 

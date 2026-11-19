@@ -1,4 +1,4 @@
-// Package inventory models QIDI printers and selector expressions.
+// Package inventory models printers and selector expressions.
 package inventory
 
 import (

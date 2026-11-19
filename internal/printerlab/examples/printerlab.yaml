@@ -63,5 +63,15 @@ printers:
     # klippee:
     #   workspace: D:\printer-configs\printer-b
 
+  - name: workshop-voron
+    address: voron.example
+    model: voron-2.4
+    firmware: mainline
+    tags: [voron]
+    # For SSH commands, replace these with the accounts on the Voron host.
+    user: voron
+    printerUser: voron
+    # apiKeyEnv: VORON_MOONRAKER_API_KEY
+
 groups:
   plus4: [printer-a, printer-b]

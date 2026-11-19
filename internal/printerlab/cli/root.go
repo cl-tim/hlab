@@ -39,8 +39,8 @@ func NewCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	a := &app{in: stdin, out: stdout, errOut: stderr}
 	root := &cobra.Command{
 		Use:   "printer",
-		Short: "Manage a fleet of stock and mainline QIDI printers",
-		Long: "Manage QIDI printers through Moonraker and SSH.\n\n" +
+		Short: "Manage Klipper printers through Moonraker, including Voron and QIDI",
+		Long: "Manage Klipper printers through Moonraker and SSH.\n\n" +
 			"Selectors: all, @group, #tag, name, glob, and !exclusion.",
 		SilenceUsage:  true,
 		SilenceErrors: true,
@@ -85,6 +85,9 @@ func NewCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 		newDiscoverCmd(a),
 		newPrintersCmd(a),
 		newComponentsCmd(a),
+		newJobsCmd(a),
+		newMaintenanceCmd(a),
+		newSpoolmanCmd(a),
 		newStatusCmd(a),
 		newIdleTimeoutCmd(a),
 		newCancelPrintCmd(a),

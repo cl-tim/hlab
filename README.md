@@ -164,7 +164,7 @@ skipped, never contacted.
 | `hlab secret`                   | Manage the credentials a stack reads at runtime    |
 | `hlab backup` / `hlab restore`  | Copy stack state off a machine, and put it back    |
 | `hlab dns sync`                 | Publish the inventory as DNS records               |
-| `hlab printer`                  | Manage Klipper and QIDI printers                   |
+| `hlab printer`                  | Manage Klipper printers, including Voron and QIDI  |
 | `hlab config`                   | `init`, `path`, `home`, `show`                     |
 
 Every command has `--help`. Global flags:
@@ -284,8 +284,9 @@ endpoints:
 
 ## Printers
 
-`hlab printer` covers Moonraker discovery, printer status, Klippee workspaces
-and QIDI firmware maintenance.
+`hlab printer` covers Moonraker discovery, status, job history, Spoolman status,
+component maintenance, and Klippee workspaces for Klipper printers, including
+Voron and QIDI. The firmware commands support the QIDI Plus4.
 
 ```bash
 hlab printer discover scan --emit    # prints a printerlab: section

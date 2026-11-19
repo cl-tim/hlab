@@ -20,7 +20,7 @@ import (
 )
 
 func newFirmwareCmd(a *app) *cobra.Command {
-	command := &cobra.Command{Use: "firmware", Short: "Prepare, migrate and check printer firmware"}
+	command := &cobra.Command{Use: "firmware", Short: "Prepare, migrate and check QIDI Plus4 firmware"}
 	advanced := newMainlineCmd(a)
 	advanced.Use, advanced.Short, advanced.Hidden = "advanced", "Individual migration operations and recovery tools", false
 	status := newMainlineStateCmd(a)

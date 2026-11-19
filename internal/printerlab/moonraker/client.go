@@ -1,5 +1,4 @@
-// Package moonraker provides the common management plane shared by stock and
-// mainline QIDI firmware.
+// Package moonraker provides a client for the Moonraker API on Klipper printers.
 package moonraker
 
 import (
