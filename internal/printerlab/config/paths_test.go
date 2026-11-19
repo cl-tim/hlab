@@ -5,7 +5,32 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	hostconfig "github.com/cl-tim/hlab/internal/config"
 )
+
+// isolate points both homes at empty temp directories and clears every path
+// override, so a test can never read the developer's real inventory.
+func isolate(t *testing.T) (hostHome, printerHome string) {
+	t.Helper()
+	hostHome, printerHome = t.TempDir(), t.TempDir()
+	t.Setenv(hostconfig.EnvHome, hostHome)
+	t.Setenv(hostconfig.EnvConfigPath, "")
+	t.Setenv(EnvHome, printerHome)
+	t.Setenv(EnvConfigPath, "")
+	return hostHome, printerHome
+}
+
+func write(t *testing.T, path, body string) string {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
 
 // The printer half holds the same line as the host half: nothing is read from
 // or defaulted into the directory hlab happens to be run from, which is
@@ -13,30 +38,29 @@ import (
 func TestPrinterDataNeverDefaultsIntoTheWorkingDirectory(t *testing.T) {
 	repo := t.TempDir()
 	t.Chdir(repo)
-	home := t.TempDir()
-	t.Setenv(EnvHome, home)
-	t.Setenv(EnvConfigPath, "")
+	hostHome, _ := isolate(t)
 
-	for _, decoy := range []string{"config.yaml", "printerlab.yaml"} {
-		body := "printers:\n  - name: decoy\n    address: 198.51.100.1\n"
-		if err := os.WriteFile(filepath.Join(repo, decoy), []byte(body), 0o600); err != nil {
-			t.Fatalf("write decoy: %v", err)
-		}
+	for _, decoy := range []string{"config.yaml", "printerlab.yaml", "homelab.yaml"} {
+		write(t, filepath.Join(repo, decoy), "printers:\n  - name: decoy\n    address: 198.51.100.1\n")
 	}
 
-	if got := DefaultPath(); got != filepath.Join(home, "config.yaml") {
-		t.Errorf("DefaultPath() = %q, want it under %s", got, EnvHome)
+	if got := UnifiedPath(); got != filepath.Join(hostHome, "config.yaml") {
+		t.Errorf("UnifiedPath() = %q, want it under the hlab home", got)
+	}
+	if got := WritePath(""); got != filepath.Join(hostHome, "config.yaml") {
+		t.Errorf("WritePath() = %q, want it under the hlab home", got)
 	}
 
 	cfg, err := Load("")
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.Path != "" || len(cfg.Inventory.Printers()) != 0 {
+	if cfg.Path != "" || cfg.Present || len(cfg.Inventory.Printers()) != 0 {
 		t.Errorf("Load picked up %q with %d printer(s) from the working directory",
 			cfg.Path, len(cfg.Inventory.Printers()))
 	}
 	for name, path := range map[string]string{
+		"LegacyPath":   LegacyPath(),
 		"ArtifactDir":  cfg.Defaults.Migration.ArtifactDir,
 		"ConfigOutput": cfg.Defaults.Migration.ConfigOutput,
 	} {
@@ -48,25 +72,24 @@ func TestPrinterDataNeverDefaultsIntoTheWorkingDirectory(t *testing.T) {
 
 // An explicit path that is wrong must fail rather than quietly mean "no
 // inventory".
-func TestMissingExplicitInventoryIsAnError(t *testing.T) {
-	t.Setenv(EnvHome, t.TempDir())
+func TestMissingNamedConfigIsAnError(t *testing.T) {
+	isolate(t)
 	missing := filepath.Join(t.TempDir(), "nope.yaml")
 
-	t.Setenv(EnvConfigPath, "")
 	if _, err := Load(missing); err == nil {
 		t.Error("Load of a missing explicit path did not error")
 	}
-	t.Setenv(EnvConfigPath, missing)
-	if _, err := Load(""); err == nil || !strings.Contains(err.Error(), EnvConfigPath) {
-		t.Errorf("Load with a missing %s: error = %v, want one naming the variable", EnvConfigPath, err)
+	for _, env := range []string{EnvConfigPath, hostconfig.EnvConfigPath} {
+		t.Setenv(env, missing)
+		if _, err := Load(""); err == nil || !strings.Contains(err.Error(), env) {
+			t.Errorf("Load with a missing %s: error = %v, want one naming the variable", env, err)
+		}
+		t.Setenv(env, "")
 	}
 }
 
 func TestConnectTimeoutAcceptsBareSeconds(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "config.yaml")
-	if err := os.WriteFile(path, []byte("defaults:\n  connectTimeout: 30\n"), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	path := write(t, filepath.Join(t.TempDir(), "config.yaml"), "defaults:\n  connectTimeout: 30\n")
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatalf("Load: %v", err)

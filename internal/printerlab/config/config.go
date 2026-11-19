@@ -1,4 +1,9 @@
-// Package config loads printerlab's inventory and defaults.
+// Package config loads the printer inventory and defaults.
+//
+// Printers live in hlab's own config.yaml, under `printerlab:`, so one file
+// describes everything on the network. A file holding only a printer
+// inventory — the layout from before the merge — is still read and edited
+// when it is the one named.
 package config
 
 import (
@@ -13,6 +18,7 @@ import (
 	"go.yaml.in/yaml/v3"
 
 	"github.com/cl-tim/hlab/internal/cfgkit"
+	hostconfig "github.com/cl-tim/hlab/internal/config"
 	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
@@ -71,7 +77,17 @@ type File struct {
 }
 
 type Config struct {
-	Path      string
+	// Path is the file the inventory was read from, or "" if none exists.
+	Path string
+	// Layout is how that file is laid out, and so how it must be edited.
+	Layout Layout
+	// Present reports whether the file holds a printer inventory at all:
+	// hlab's config before any printer has been added does not.
+	Present bool
+	// Legacy is set when the inventory came from the pre-merge standalone
+	// location because hlab's config has no printer section yet.
+	Legacy bool
+
 	Defaults  Defaults
 	Inventory *inventory.Inventory
 }
@@ -88,11 +104,52 @@ func builtinDefaults() Defaults {
 	}
 }
 
+// Load reads the printer inventory.
+//
+// An explicit path, or one named by $PLAB_CONFIG, is read whichever layout it
+// has. Otherwise the inventory is the `printerlab:` section of hlab's own
+// config. A standalone inventory left at the pre-merge location is still read
+// when hlab's config has no such section, and Legacy is set so the caller can
+// say how to fold it in.
 func Load(explicit string) (*Config, error) {
-	path, err := cfgkit.ResolvePath(explicit, EnvConfigPath, []string{DefaultPath()})
+	named, err := cfgkit.ResolvePath(explicit, EnvConfigPath, nil)
 	if err != nil {
 		return nil, err
 	}
+	if named != "" {
+		return loadFile(named)
+	}
+
+	unified, err := cfgkit.ResolvePath("", hostconfig.EnvConfigPath, hostconfig.SearchPaths())
+	if err != nil {
+		return nil, err
+	}
+	cfg, err := loadFile(unified)
+	if err != nil || cfg.Present {
+		return cfg, err
+	}
+	if _, statErr := os.Stat(LegacyPath()); statErr == nil {
+		legacy, err := loadFile(LegacyPath())
+		if err != nil {
+			return nil, err
+		}
+		legacy.Legacy = true
+		return legacy, nil
+	}
+	return cfg, nil
+}
+
+// unifiedFile reads the printer section out of hlab's config and lets every
+// other key through untouched: those belong to the host loader, which applies
+// its own strictness to them.
+type unifiedFile struct {
+	Printerlab *File                `yaml:"printerlab"`
+	Other      map[string]yaml.Node `yaml:",inline"`
+}
+
+// loadFile reads one file in whichever layout it has. An empty path yields
+// built-in defaults and no printers.
+func loadFile(path string) (*Config, error) {
 	cfg := &Config{Defaults: builtinDefaults()}
 	var file File
 	if path != "" {
@@ -100,9 +157,27 @@ func Load(explicit string) (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read config %s: %w", path, err)
 		}
+		_, root, err := parseRoot(raw)
+		if err != nil {
+			return nil, fmt.Errorf("parse config %s: %w", path, err)
+		}
+		cfg.Layout, err = layoutOf(root)
+		if err != nil {
+			return nil, fmt.Errorf("config %s: %w", path, err)
+		}
 		decoder := yaml.NewDecoder(bytes.NewReader(raw))
 		decoder.KnownFields(true)
-		if err := decoder.Decode(&file); err != nil && !errors.Is(err, io.EOF) {
+		if cfg.Layout == LayoutStandalone {
+			err = decoder.Decode(&file)
+			cfg.Present = true
+		} else {
+			var whole unifiedFile
+			err = decoder.Decode(&whole)
+			if whole.Printerlab != nil {
+				file, cfg.Present = *whole.Printerlab, true
+			}
+		}
+		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("parse config %s: %w", path, err)
 		}
 		cfg.Path = path
@@ -112,9 +187,10 @@ func Load(explicit string) (*Config, error) {
 	for i, printer := range file.Printers {
 		printers[i] = applyDefaults(printer, cfg.Defaults)
 	}
+	var err error
 	cfg.Inventory, err = inventory.New(printers, file.Groups)
 	if err != nil {
-		return nil, fmt.Errorf("invalid inventory: %w", err)
+		return nil, fmt.Errorf("invalid printer inventory: %w", err)
 	}
 	return cfg, nil
 }
@@ -297,8 +373,11 @@ func applyMigrationDefaults(
 	return migration
 }
 
-// Home is where printer inventories, journals and artifacts live. It predates
-// the merge into hlab and is kept so existing data is read in place.
+// Home is where printer journals, backups and build artifacts live. It
+// predates the merge into hlab and is kept so existing data is read in place.
+// The inventory itself now lives in hlab's config; see Load.
 func Home() string { return cfgkit.Home(EnvHome, "plab") }
 
-func DefaultPath() string { return filepath.Join(Home(), "config.yaml") }
+// LegacyPath is where the standalone printer inventory lived before printers
+// moved into hlab's config. It is read as a fallback and never created.
+func LegacyPath() string { return filepath.Join(Home(), "config.yaml") }

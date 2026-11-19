@@ -10,9 +10,30 @@ import (
 	"time"
 
 	"go.yaml.in/yaml/v3"
+
+	hostconfig "github.com/cl-tim/hlab/internal/config"
 )
 
+// editDocument changes the printer inventory in path, wherever in the file it
+// lives: edit receives the mapping that holds defaults, printers and groups.
+// A file that does not exist yet is created in hlab's unified layout.
 func editDocument(path, backupLabel string, edit func(*yaml.Node) error) error {
+	return editRoot(path, backupLabel, func(root *yaml.Node) error {
+		inventory, _, err := section(root, true)
+		if err != nil {
+			return err
+		}
+		return edit(inventory)
+	})
+}
+
+// editRoot applies edit to the document's root mapping and publishes the
+// result only if it still loads, keeping an exact copy of the previous file.
+//
+// The file is shared with the host inventory once printers live in hlab's
+// config, so the result must load for both readers: an edit to a printer may
+// not leave `hlab run` with a config it cannot parse.
+func editRoot(path, backupLabel string, edit func(*yaml.Node) error) error {
 	path, err := filepath.Abs(path)
 	if err != nil {
 		return err
@@ -26,23 +47,24 @@ func editDocument(path, backupLabel string, edit func(*yaml.Node) error) error {
 		return fmt.Errorf("inventory must be a regular file: %s", path)
 	}
 	var original []byte
-	doc := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{{Kind: yaml.MappingNode, Tag: "!!map"}}}
 	if exists {
-		if _, err := Load(path); err != nil {
+		if _, err := loadFile(path); err != nil {
 			return err
 		}
 		original, err = os.ReadFile(path)
 		if err != nil {
 			return err
 		}
-		if err := yaml.Unmarshal(original, doc); err != nil {
-			return err
-		}
 	}
-	if len(doc.Content) != 1 || doc.Content[0].Kind != yaml.MappingNode {
-		return fmt.Errorf("inventory must contain one YAML mapping")
+	doc, root, err := parseRoot(original)
+	if err != nil {
+		return err
 	}
-	if err := edit(doc.Content[0]); err != nil {
+	if err := edit(root); err != nil {
+		return err
+	}
+	layout, err := layoutOf(root)
+	if err != nil {
 		return err
 	}
 	var buffer bytes.Buffer
@@ -60,7 +82,7 @@ func editDocument(path, backupLabel string, edit func(*yaml.Node) error) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
-	temp, err := os.CreateTemp(filepath.Dir(path), ".plab-inventory-*.yaml")
+	temp, err := os.CreateTemp(filepath.Dir(path), ".hlab-config-*.yaml")
 	if err != nil {
 		return err
 	}
@@ -80,8 +102,13 @@ func editDocument(path, backupLabel string, edit func(*yaml.Node) error) error {
 	if err := temp.Close(); err != nil {
 		return err
 	}
-	if _, err := Load(temp.Name()); err != nil {
+	if _, err := loadFile(temp.Name()); err != nil {
 		return err
+	}
+	if layout == LayoutUnified {
+		if _, err := hostconfig.Load(temp.Name()); err != nil {
+			return fmt.Errorf("the host inventory in %s would no longer load: %w", path, err)
+		}
 	}
 	// Detect edits made during the prompts instead of discarding them.
 	current, readErr := os.ReadFile(path)

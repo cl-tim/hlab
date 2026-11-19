@@ -66,28 +66,76 @@ the fleet model stay independently changeable. Keep it that way.
 
 `hlab printer` began as a separate tool (plab) and lives under
 `internal/printerlab` with its own command tree, config file and inventory.
-The two halves are **separate inventories on shared plumbing**:
+The two halves are **separate inventories in one file, on shared plumbing**:
 
 - **Shared, with one implementation each**: the selector language
   (`internal/selector`), exit codes and `version` (`internal/clikit`), home
   and config-path resolution, `~` expansion and `Duration` (`internal/cfgkit`),
   shell quoting (`internal/shellword`), rendering (`internal/output`). A fix
   to any of these belongs in the shared package, never in one half.
-- **Deliberately separate**: the config files and their schemas, and the
-  transports. Printers are reached through Moonraker and the system `ssh`
-  binary, not `sshx`, and a printer is not a host record — it has no
-  `managed` flag, so `Inventory.Select`'s managed-only rule has nothing to
-  say about it. Do not fold printers into `hosts:` without a deliberate
-  decision and a migration.
-- **`plab` survives where it names existing data**: `%AppData%\plab`,
-  `PLAB_HOME`, `PLAB_CONFIG`, and the `plab` management account on printers.
-  Those are read in place; renaming them strands inventories, journals and
+- **One config file, two sections.** Printers live in hlab's `config.yaml`
+  under `printerlab:` (`printerconfig.SectionKey`), holding exactly what a
+  standalone printer inventory holds at its top level: `defaults`, `printers`,
+  `groups`. See "The printer section" below.
+- **Deliberately separate**: the schemas and the transports. Printers are
+  reached through Moonraker and the system `ssh` binary, not `sshx`, and a
+  printer is not a host record — it has no `managed` flag, so
+  `Inventory.Select`'s managed-only rule has nothing to say about it. Do not
+  fold printers into `hosts:`: `hlab run all` would then try to SSH into a
+  printer as a server, with the server account.
+- **`plab` survives where it names existing data**: `%AppData%\plab` and
+  `PLAB_HOME` for journals, backups and artifacts, `PLAB_CONFIG`, and the
+  `plab` management account on printers. Renaming them strands data and
   accounts that already exist.
+
+### The printer section
+
+Each loader reads its own part of the file and is strict only there:
+
+- The **host loader** holds `printerlab:` as an opaque `yaml.Node`. A typo in
+  a printer entry is the printer loader's to report and must never stop
+  `hlab run` reaching a server.
+- The **printer loader** decodes `printerlab:` with `KnownFields(true)` and
+  lets every other top-level key through an inline map, so a new host key
+  needs no change on the printer side.
+
+`defaults` and `groups` exist at both levels and are different namespaces.
+That is the point of nesting rather than adding `printers:` beside `hosts:` —
+host `defaults.user` must not become the account hlab logs into a printer
+with. `TestOneFileHoldsHostsAndPrinters` guards both directions.
+
+`layoutOf` is the only place that decides how a file is laid out. A file with
+top-level `printers:` is a **standalone** inventory — the pre-merge layout —
+and is still read and edited in place when named by `--config` or
+`PLAB_CONFIG`. Top-level `printers:` *beside* host keys is refused with
+directions rather than guessed at. An empty or missing file is unified, so the
+first printer never starts a second config.
+
+Both editors write the same file. Each round-trips the document as a
+`yaml.Node` and touches only its own section; the printer editor additionally
+refuses to publish a result the *host* loader cannot read
+(`TestEditingAPrinterLeavesTheHostInventoryAlone`, and the reverse).
+
+A standalone inventory at the old default location (`LegacyPath`) is read as
+a fallback when the hlab config has no printer section, and every
+non-structured command says so. Folding it in is `hlab printer config migrate`
+and is **explicit, never automatic**: it rewrites the file that holds every
+server's record, which is not something to do as a side effect of
+`hlab printer status`. It moves the YAML nodes (comments survive), refuses to
+merge into an existing section, and renames the old file to `.migrated`
+rather than deleting it.
+
+Printer tests must isolate **both** homes. The inventory now defaults to the
+hlab config, so a test that sets only `PLAB_HOME` would read the developer's
+real one; the printer CLI's `TestMain` points `HLAB_HOME` at an empty
+directory for that reason.
 
 Both command trees return `clikit.ExitError` (aliased as `cli.ExitError` in
 each), so `main` unwraps one type. `hlab printer` has its own
 `PersistentPreRunE`, which is why a printer command never loads or creates
-the host config; `TestPrinterCommandsDoNotCreateTheHostConfig` guards that.
+the host config; `TestReadingPrintersDoesNotCreateTheConfig` guards that. Only
+`printer config init`, `printer config migrate` and guided firmware
+preparation create it.
 
 ## Conventions
 

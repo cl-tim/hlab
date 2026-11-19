@@ -63,6 +63,11 @@ type File struct {
 	Hosts     []hostEntry                  `yaml:"hosts"`
 	Groups    map[string][]string          `yaml:"groups"`
 
+	// Printerlab is the printer inventory read by `hlab printer`. It is held
+	// opaquely: the printer loader owns its schema and its strictness, and a
+	// mistake in it must not stop `hlab run` from reaching a server.
+	Printerlab yaml.Node `yaml:"printerlab"`
+
 	// Discovered is a section written by earlier builds, when scan results
 	// lived separately from the inventory. It is still read so those configs
 	// keep working, and is folded into Hosts on the next write. Nothing

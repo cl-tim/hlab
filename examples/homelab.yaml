@@ -52,3 +52,20 @@ groups:
     - backup-01
   edge:
     - pi-dns
+
+# Printers, managed with `hlab printer`. They are not hosts: the section has
+# its own defaults and groups, and `hlab run all` never reaches a printer.
+printerlab:
+  defaults:
+    user: mks
+    moonrakerPort: 7125
+
+  printers:
+    - name: printer-a
+      address: 192.0.2.60
+      model: plus4
+      firmware: stock
+      tags: [plus4]
+
+  groups:
+    farm: [printer-a]

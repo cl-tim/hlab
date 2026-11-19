@@ -42,54 +42,85 @@ hlab printer version
 hlab printer --help
 ```
 
-Existing inventories, journals, and credentials under `%AppData%\plab`
-are read in place. The printer commands also continue to honor `PLAB_HOME`
-and `PLAB_CONFIG`.
+Journals, backups and build artifacts stay under `%AppData%\plab`
+(`PLAB_HOME` relocates them) and are read in place.
 
 ## Configure
 
-Create the default config under `%AppData%\plab`:
+Printers live in the same `config.yaml` as every other machine hlab knows
+about, under a `printerlab:` section:
 
 ```powershell
-hlab printer config init
-hlab printer config path
+hlab printer config init    # add the section to the hlab config
+hlab printer config path    # show which file holds the inventory
 ```
 
-Alternatively use a project-local inventory explicitly:
+```yaml
+# hlab's config.yaml
+hosts:
+  - name: nas-01
+    address: 192.0.2.10
+
+printerlab:
+  defaults:
+    user: mks
+    port: 22
+    moonrakerPort: 7125
+
+    klippee:
+      executable: klippee
+      workspaceRoot: C:\src\printer-workspaces
+
+  printers:
+    - name: printer-a
+      address: stock-plus4.example
+      model: plus4
+      firmware: stock
+      tags: [plus4, stock]
+
+    - name: printer-b
+      address: mainline-plus4.example
+      model: plus4
+      firmware: mainline
+      tags: [plus4, mainline]
+
+  groups:
+    plus4: [printer-a, printer-b]
+```
+
+The section has its own `defaults` and `groups`. They are separate from the
+host ones on purpose: the account hlab uses on a server is not the account it
+uses on a printer, and `hlab run all` never reaches a printer.
+`hlab printer discover scan --emit` prints a `printers:` fragment to paste
+under `printerlab:`.
+
+### Moving an existing inventory
+
+An inventory from before printers moved into the hlab config, at
+`%AppData%\plab\config.yaml`, keeps working where it is. Each command says so
+until you fold it in:
+
+```powershell
+hlab printer config migrate
+```
+
+This moves the file's contents, comments included, into the `printerlab:`
+section of the hlab config, backs the hlab config up beside itself first, and
+renames the old file to `config.yaml.migrated`. It refuses if the hlab config
+already has a printer section. Use `--from FILE` for an inventory kept
+elsewhere.
+
+### A separate file
+
+A file holding only a printer inventory — `defaults`, `printers` and `groups`
+at the top level — is still read and edited when it is the one named:
 
 ```powershell
 hlab printer --config .\internal\printerlab\examples\printerlab.yaml printers
 ```
 
-The working directory is never searched implicitly. `PLAB_HOME` relocates
-printerlab's home and `PLAB_CONFIG` selects a specific inventory.
-
-```yaml
-defaults:
-  user: mks
-  port: 22
-  moonrakerPort: 7125
-
-  klippee:
-    executable: klippee
-    workspaceRoot: C:\src\printer-workspaces
-
-printers:
-  - name: printer-a
-    address: stock-plus4.example
-    model: plus4
-    firmware: stock
-    tags: [plus4, stock]
-
-  - name: printer-b
-    address: mainline-plus4.example
-    model: plus4
-    firmware: mainline
-    tags: [plus4, mainline]
-
-groups:
-  plus4: [printer-a, printer-b]
-```
+`--config`, then `PLAB_CONFIG`, then `HLAB_CONFIG` select the file. The working
+directory is never searched implicitly.
 
 Set `apiKeyEnv` to the name of an environment variable when Moonraker requires
 an API key. The key itself never belongs in the inventory.

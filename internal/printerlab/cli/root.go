@@ -57,8 +57,13 @@ func NewCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if cfg.Path == "" {
+			if !cfg.Present {
 				return fmt.Errorf("no printer inventory found; create one with `hlab printer config init`")
+			}
+			if cfg.Legacy && !a.format.Structured() {
+				fmt.Fprintf(a.errOut,
+					"Printer inventory is still in %s; fold it into the hlab config with `hlab printer config migrate`.\n",
+					cfg.Path)
 			}
 			a.cfg = cfg
 			return nil
@@ -68,7 +73,7 @@ func NewCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
-	flags.StringVar(&a.configPath, "config", "", "inventory path (default: "+config.DefaultPath()+")")
+	flags.StringVar(&a.configPath, "config", "", "config holding the printer inventory (default: "+config.UnifiedPath()+")")
 	flags.StringVarP(&a.outputFlag, "output", "o", "table", "output format: table, json, yaml")
 	flags.IntVarP(&a.concurrency, "concurrency", "c", 0, "maximum concurrent read operations")
 	flags.DurationVar(&a.connectTimeout, "connect-timeout", 0, "Moonraker/SSH connection timeout")
@@ -113,6 +118,9 @@ func skipsConfig(cmd *cobra.Command) bool {
 			return true
 		}
 		if current.Name() == "path" && current.Parent() != nil && current.Parent().Name() == "config" {
+			return true
+		}
+		if current.Name() == "migrate" && current.Parent() != nil && current.Parent().Name() == "config" {
 			return true
 		}
 		if current.Name() == "scan" && current.Parent() != nil && current.Parent().Name() == "discover" {

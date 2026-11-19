@@ -71,8 +71,10 @@ For a new target, enter its address, SSH account and key path, then select
 the WSL distribution. Existing inventory entries are reused. You do not
 need to run **config init** or edit YAML first. Preparation supplies build
 paths and saves the printer settings, preserving other printers, groups
-and comments. Before changing an existing inventory, it keeps an exact
-**config.yaml.before-firmware-\*** recovery copy.
+and comments. Printers are saved in the hlab **config.yaml**, under
+**printerlab:**, alongside any servers recorded there. Before changing an
+existing config, it keeps an exact **config.yaml.before-firmware-\*** recovery
+copy.
 
 Preparation installs/verifies the SSH key, shows a live audit and asks you
 to review it before taking the backup. SSH can prompt for the initial

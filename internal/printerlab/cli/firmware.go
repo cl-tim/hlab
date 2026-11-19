@@ -97,13 +97,7 @@ func (a *app) firmwareSettings(ctx context.Context, name string) (inventory.Prin
 	if name == "all" || !regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]*$`).MatchString(name) {
 		return inventory.Printer{}, fmt.Errorf("guided setup needs an exact printer name containing letters, numbers, - or _")
 	}
-	path := a.configPath
-	if path == "" {
-		path = os.Getenv(config.EnvConfigPath)
-	}
-	if path == "" {
-		path = config.DefaultPath()
-	}
+	path := config.WritePath(a.configPath)
 	cfg, err := config.Load(path)
 	if os.IsNotExist(err) {
 		// Obtain built-in defaults without consulting a missing explicit path.

@@ -48,7 +48,19 @@ func TestMain(m *testing.M) {
 	if handled, code := migrate.MaybeRunBackend(context.Background(), os.Args[1:], os.Stdout, os.Stderr); handled {
 		os.Exit(code)
 	}
-	os.Exit(m.Run())
+	// The printer inventory defaults to the hlab config. No test may reach the
+	// developer's real one, so the hlab home is an empty directory throughout.
+	hostHome, err := os.MkdirTemp("", "hlab-printer-cli-test-*")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	os.Setenv("HLAB_HOME", hostHome)
+	os.Unsetenv("HLAB_CONFIG")
+	os.Unsetenv("PLAB_CONFIG")
+	code := m.Run()
+	_ = os.RemoveAll(hostHome)
+	os.Exit(code)
 }
 
 func writeCLIConnection(t *testing.T, workspace string) {

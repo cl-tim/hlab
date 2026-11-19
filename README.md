@@ -32,8 +32,9 @@ hlab printer status
 hlab printer discover scan
 ```
 
-Existing Printerlab installations can use the same printer inventory, journals,
-and credentials through `hlab printer`. See the
+Printers are recorded in the same `config.yaml` as your servers, under a
+`printerlab:` section. An inventory from a standalone Printerlab install is
+still read where it is; `hlab printer config migrate` folds it in. See the
 [printer guide](internal/printerlab/README.md) for configuration and workflows.
 
 ## Status
