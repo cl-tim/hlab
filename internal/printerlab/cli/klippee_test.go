@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/cl-tim/hlab/internal/printerlab/migrate"
@@ -983,7 +984,9 @@ func TestKlippeeFirmwareRestartBlocksBusyPrinter(t *testing.T) {
 }
 
 func TestKlippeeFirmwareRestartTimeoutIsAmbiguousAndNeverRetried(t *testing.T) {
-	postCalls := 0
+	// The handler is still blocked in its goroutine when the test reads the
+	// count, so it is atomic.
+	var postCalls atomic.Int32
 	release := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet && r.URL.Path == "/printer/objects/query" {
@@ -991,7 +994,7 @@ func TestKlippeeFirmwareRestartTimeoutIsAmbiguousAndNeverRetried(t *testing.T) {
 			return
 		}
 		if r.Method == http.MethodPost && r.URL.Path == "/printer/gcode/script" {
-			postCalls++
+			postCalls.Add(1)
 			<-release
 			return
 		}
@@ -1014,7 +1017,7 @@ func TestKlippeeFirmwareRestartTimeoutIsAmbiguousAndNeverRetried(t *testing.T) {
 		!strings.Contains(err.Error(), "hlab printer status printer-a") {
 		t.Fatalf("got %v, want no-retry ambiguity guidance", err)
 	}
-	if postCalls != 1 {
-		t.Fatalf("firmware restart made %d POST requests, want exactly one", postCalls)
+	if got := postCalls.Load(); got != 1 {
+		t.Fatalf("firmware restart made %d POST requests, want exactly one", got)
 	}
 }
