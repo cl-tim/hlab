@@ -12,8 +12,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/cl-tim/homelab-cli/internal/enroll"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/enroll"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // Integration tests run against a real SSH host with a real sudo, because the

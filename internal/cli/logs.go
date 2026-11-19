@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/shellword"
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 // logsTemplate fetches the logs of a container or a systemd unit.

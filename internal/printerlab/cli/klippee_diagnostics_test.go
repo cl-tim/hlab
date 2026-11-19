@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/moonraker"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/moonraker"
 )
 
 const testDiagnosticsURL = "https://klippee.xyz/log-diagnostics?upload=123e4567-e89b-42d3-a456-426614174000"

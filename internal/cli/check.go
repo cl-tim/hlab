@@ -7,9 +7,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/health"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
-	"github.com/cl-tim/homelab-cli/internal/output"
+	"github.com/cl-tim/hlab/internal/health"
+	"github.com/cl-tim/hlab/internal/inventory"
+	"github.com/cl-tim/hlab/internal/output"
 )
 
 func newCheckCmd(a *app) *cobra.Command {

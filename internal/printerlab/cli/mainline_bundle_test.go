@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/config"
+	"github.com/cl-tim/hlab/internal/printerlab/config"
 )
 
 func standaloneInventory(t *testing.T) string {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 func iface(name, kind, addr string, dhcp, carrier bool) inventory.Interface {

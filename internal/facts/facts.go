@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 // Facts is one host's snapshot.

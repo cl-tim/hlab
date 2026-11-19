@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/config"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/stages"
+	"github.com/cl-tim/hlab/internal/printerlab/config"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/stages"
 )
 
 func promptApp(input string) *app {

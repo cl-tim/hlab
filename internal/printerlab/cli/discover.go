@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/discover"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/output"
+	"github.com/cl-tim/hlab/internal/printerlab/discover"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
 func newDiscoverCmd(a *app) *cobra.Command {

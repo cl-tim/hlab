@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/discover"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/discover"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 func TestCandidateFromStoredHost(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/shellword"
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 const testBlob = "AAAAC3NzaC1lZDI1NTE5AAAAIGt1c3RvbWtleWJvZHlmb3J0ZXN0aW5nb25seQ=="

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/stages"
+	"github.com/cl-tim/hlab/internal/printerlab/stages"
 )
 
 const schemaVersion = 1

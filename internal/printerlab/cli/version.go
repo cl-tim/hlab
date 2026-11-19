@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/buildinfo"
+	"github.com/cl-tim/hlab/internal/buildinfo"
 )
 
 func newVersionCmd(a *app) *cobra.Command {

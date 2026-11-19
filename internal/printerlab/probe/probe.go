@@ -8,8 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
 )
 
 // Status is a check's verdict. Indeterminate preserves an unknown result

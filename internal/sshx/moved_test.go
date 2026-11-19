@@ -14,8 +14,8 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
 
-	"github.com/cl-tim/homelab-cli/internal/sshtest"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/sshtest"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // The old address is one nothing listens on: the machine has moved away

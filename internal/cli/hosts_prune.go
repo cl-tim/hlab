@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
-	"github.com/cl-tim/homelab-cli/internal/facts"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/config"
+	"github.com/cl-tim/hlab/internal/facts"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 func newHostsPruneCmd(a *app) *cobra.Command {

@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 	"go.yaml.in/yaml/v3"
 )
 

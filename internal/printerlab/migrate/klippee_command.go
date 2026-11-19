@@ -1,6 +1,6 @@
 package migrate
 
-import "github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
+import "github.com/cl-tim/hlab/internal/printerlab/inventory"
 
 // klippeeFixedAccountArgs binds a fixed Klippee operation to the inventory's
 // printer account with the same minimal environment used by the reviewed

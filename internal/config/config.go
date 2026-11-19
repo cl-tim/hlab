@@ -15,8 +15,8 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/cl-tim/homelab-cli/internal/health"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/health"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 // EnvConfigPath overrides the config file location.

@@ -9,7 +9,7 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
 const KlipperServiceRestartSchema = "printerlab-klipper-service-restart/v1"

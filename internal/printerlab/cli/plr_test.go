@@ -12,7 +12,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	plabconfig "github.com/cl-tim/homelab-cli/internal/printerlab/config"
+	plabconfig "github.com/cl-tim/hlab/internal/printerlab/config"
 )
 
 const testPLRManifest = "/home/mks/scripts/plr/backups/plr-hardening-20260806T000000Z-test/backup-manifest.json"

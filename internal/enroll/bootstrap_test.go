@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/shellword"
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 const testKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITEST hlab management key"

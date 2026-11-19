@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
-	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/shellword"
-	"github.com/cl-tim/homelab-cli/internal/stack"
+	"github.com/cl-tim/hlab/internal/config"
+	"github.com/cl-tim/hlab/internal/output"
+	"github.com/cl-tim/hlab/internal/shellword"
+	"github.com/cl-tim/hlab/internal/stack"
 )
 
 func newStackDiffCmd(a *app) *cobra.Command {

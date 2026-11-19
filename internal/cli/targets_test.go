@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/config"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 // testApp builds an app around a fixed inventory, with output discarded.

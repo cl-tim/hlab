@@ -11,11 +11,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
-	"github.com/cl-tim/homelab-cli/internal/output"
-	printercli "github.com/cl-tim/homelab-cli/internal/printerlab/cli"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/config"
+	"github.com/cl-tim/hlab/internal/inventory"
+	"github.com/cl-tim/hlab/internal/output"
+	printercli "github.com/cl-tim/hlab/internal/printerlab/cli"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // ExitError carries a specific process exit code up to main.

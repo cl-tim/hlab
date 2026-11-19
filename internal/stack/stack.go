@@ -9,7 +9,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	"github.com/cl-tim/homelab-cli/internal/shellword"
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 // RemoteDir is where stacks live on a managed machine.

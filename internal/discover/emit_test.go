@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
+	"github.com/cl-tim/hlab/internal/config"
 )
 
 var emitTime = time.Date(2026, 7, 27, 9, 30, 0, 0, time.UTC)

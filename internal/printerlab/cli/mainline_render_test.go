@@ -11,7 +11,7 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	plabconfig "github.com/cl-tim/homelab-cli/internal/printerlab/config"
+	plabconfig "github.com/cl-tim/hlab/internal/printerlab/config"
 )
 
 type renderConfigFixture struct {

@@ -3,7 +3,7 @@ package stages
 import (
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/probe"
+	"github.com/cl-tim/hlab/internal/printerlab/probe"
 )
 
 func find(t *testing.T, decisions []Decision, id string) Decision {

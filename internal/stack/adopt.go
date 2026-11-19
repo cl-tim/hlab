@@ -5,7 +5,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cl-tim/homelab-cli/internal/shellword"
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 // Markers the adopt script prints so a partial run can be described exactly.

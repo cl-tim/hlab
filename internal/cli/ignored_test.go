@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
+	"github.com/cl-tim/hlab/internal/config"
 )
 
 func TestIgnoredEnrollmentSurvivesConfigReload(t *testing.T) {

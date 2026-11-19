@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/moonraker"
+	"github.com/cl-tim/hlab/internal/printerlab/moonraker"
 )
 
 func TestAuditSnapshot(t *testing.T) {

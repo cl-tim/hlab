@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/enroll"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/enroll"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // asAdmin runs a command as the operator's account, over a password login

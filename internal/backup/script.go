@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cl-tim/homelab-cli/internal/shellword"
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 // RemoteDir is the directory backed up on each machine.

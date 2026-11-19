@@ -15,7 +15,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migration"
+	"github.com/cl-tim/hlab/internal/printerlab/migration"
 )
 
 func nativeTestBackend(t *testing.T) *nativeBackend {

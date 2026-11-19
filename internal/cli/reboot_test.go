@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 func hostWithDNS(name, address string, dns []string, ifaceAddrs ...string) inventory.Host {

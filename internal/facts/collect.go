@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // Collector gathers snapshots from many hosts at once.

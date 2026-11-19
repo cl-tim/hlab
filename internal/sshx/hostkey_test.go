@@ -11,8 +11,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/cl-tim/homelab-cli/internal/sshtest"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/sshtest"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // firstKnownHostsLine returns the first non-empty line of a known_hosts file.

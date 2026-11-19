@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 // DuplicateGroup is a set of records that turned out to be one machine.

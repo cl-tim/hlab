@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 // dualHomed builds the case this feature exists for: one machine with both

@@ -5,10 +5,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/config"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migration"
+	"github.com/cl-tim/hlab/internal/output"
+	"github.com/cl-tim/hlab/internal/printerlab/config"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/migration"
 )
 
 type mainlinePaths struct {

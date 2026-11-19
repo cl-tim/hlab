@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/discover"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/discover"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 // candidate is a machine offered for enrolment. It comes either from a live

@@ -13,12 +13,12 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
-	"github.com/cl-tim/homelab-cli/internal/discover"
-	"github.com/cl-tim/homelab-cli/internal/enroll"
-	"github.com/cl-tim/homelab-cli/internal/facts"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/config"
+	"github.com/cl-tim/hlab/internal/discover"
+	"github.com/cl-tim/hlab/internal/enroll"
+	"github.com/cl-tim/hlab/internal/facts"
+	"github.com/cl-tim/hlab/internal/inventory"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // enrollOptions are the settings shared by `hlab enroll` and `discover --enroll`.

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
 // ComponentInventory reads the active raw Klipper configuration. Only hardware

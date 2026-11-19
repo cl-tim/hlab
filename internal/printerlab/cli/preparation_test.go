@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/journal"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/probe"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/stages"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/journal"
+	"github.com/cl-tim/hlab/internal/printerlab/probe"
+	"github.com/cl-tim/hlab/internal/printerlab/stages"
 	"testing"
 	"time"
 )

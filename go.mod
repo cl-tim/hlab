@@ -1,4 +1,4 @@
-module github.com/cl-tim/homelab-cli
+module github.com/cl-tim/hlab
 
 go 1.26.0
 

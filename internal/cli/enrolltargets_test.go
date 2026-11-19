@@ -3,7 +3,7 @@ package cli
 import (
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 func TestNamedEnrollmentTargets(t *testing.T) {

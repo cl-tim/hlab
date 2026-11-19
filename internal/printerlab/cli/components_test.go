@@ -11,7 +11,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/config"
+	"github.com/cl-tim/hlab/internal/printerlab/config"
 )
 
 func runComponents(t *testing.T, path string, args ...string) (string, string, error) {

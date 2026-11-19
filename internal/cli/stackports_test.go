@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/stack"
+	"github.com/cl-tim/hlab/internal/stack"
 )
 
 // A stack that already holds a port conflicts with nothing: `compose up`

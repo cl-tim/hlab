@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/stages"
+	"github.com/cl-tim/hlab/internal/printerlab/stages"
 )
 
 func load(t *testing.T, home, printer string) *Journal {

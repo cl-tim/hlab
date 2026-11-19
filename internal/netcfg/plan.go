@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
+	"github.com/cl-tim/hlab/internal/inventory"
 )
 
 // Action is what a plan would do to one machine.

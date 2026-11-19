@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/sshtest"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/sshtest"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // newTestExecutor wires an executor at the given server, skipping host key

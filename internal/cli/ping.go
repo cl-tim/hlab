@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/output"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 func newPingCmd(a *app) *cobra.Command {

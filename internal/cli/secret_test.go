@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/secrets"
+	"github.com/cl-tim/hlab/internal/secrets"
 )
 
 // The script and the caller have to agree about how the value arrives.

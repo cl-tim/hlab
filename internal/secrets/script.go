@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/cl-tim/homelab-cli/internal/shellword"
+	"github.com/cl-tim/hlab/internal/shellword"
 )
 
 // StackDir is where a stack's files live on a managed machine.

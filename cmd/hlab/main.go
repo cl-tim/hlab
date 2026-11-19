@@ -9,9 +9,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cl-tim/homelab-cli/internal/cli"
-	printercli "github.com/cl-tim/homelab-cli/internal/printerlab/cli"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/cli"
+	printercli "github.com/cl-tim/hlab/internal/printerlab/cli"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
 )
 
 func main() {

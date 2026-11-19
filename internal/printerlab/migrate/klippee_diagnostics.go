@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
 const maxKlippeeDiagnosticsOutputBytes = 16 * 1024

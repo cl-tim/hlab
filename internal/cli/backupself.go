@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
+	"github.com/cl-tim/hlab/internal/config"
 )
 
 // selfFiles are the parts of hlab's own home worth keeping.

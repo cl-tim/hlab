@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
 	"go.yaml.in/yaml/v3"
 )
 

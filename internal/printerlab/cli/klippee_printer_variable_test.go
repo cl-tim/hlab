@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
 )
 
 func TestKlippeePrinterVariableSetUsesFixedVerifiedOperation(t *testing.T) {

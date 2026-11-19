@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // Checker asks many hosts at once what is out of date.

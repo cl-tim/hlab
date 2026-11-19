@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/inventory"
-	"github.com/cl-tim/homelab-cli/internal/output"
+	"github.com/cl-tim/hlab/internal/inventory"
+	"github.com/cl-tim/hlab/internal/output"
 )
 
 func TestManagedHostsDefaultsToTheManagedFleet(t *testing.T) {

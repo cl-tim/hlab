@@ -11,7 +11,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/probe"
+	"github.com/cl-tim/hlab/internal/printerlab/probe"
 )
 
 // Rerun states whether repeating a stage is safe once it may already have run.

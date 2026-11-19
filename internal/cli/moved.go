@@ -7,10 +7,10 @@ import (
 	"net/netip"
 	"time"
 
-	"github.com/cl-tim/homelab-cli/internal/config"
-	"github.com/cl-tim/homelab-cli/internal/facts"
-	"github.com/cl-tim/homelab-cli/internal/inventory"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/config"
+	"github.com/cl-tim/hlab/internal/facts"
+	"github.com/cl-tim/hlab/internal/inventory"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 // movedHost is a machine found answering somewhere other than its record.

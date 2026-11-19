@@ -7,8 +7,8 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/cl-tim/homelab-cli/internal/sshtest"
-	"github.com/cl-tim/homelab-cli/internal/sshx"
+	"github.com/cl-tim/hlab/internal/sshtest"
+	"github.com/cl-tim/hlab/internal/sshx"
 )
 
 func ok(string) sshtest.Response { return sshtest.Response{Stdout: "ok\n"} }

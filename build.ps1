@@ -21,7 +21,7 @@ Set-Location $PSScriptRoot
 
 $Binary = 'hlab'
 $Pkg    = './cmd/hlab'
-$Module = 'github.com/cl-tim/homelab-cli'
+$Module = 'github.com/cl-tim/hlab'
 
 function Get-GitValue([string[]]$GitArgs, [string]$Fallback) {
     try {

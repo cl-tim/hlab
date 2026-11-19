@@ -72,7 +72,7 @@ while hlab is running.
 Or with Go alone, into `$(go env GOPATH)/bin`:
 
 ```bash
-go install github.com/cl-tim/homelab-cli/cmd/hlab@latest
+go install github.com/cl-tim/hlab/cmd/hlab@latest
 ```
 
 To build without installing: `make build` or `.\build.ps1` (-> `bin/`).

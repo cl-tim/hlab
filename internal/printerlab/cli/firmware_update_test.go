@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	plabconfig "github.com/cl-tim/homelab-cli/internal/printerlab/config"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
+	plabconfig "github.com/cl-tim/hlab/internal/printerlab/config"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
 )
 
 func klipperUpdateDocument(t *testing.T, check bool, status string) string {

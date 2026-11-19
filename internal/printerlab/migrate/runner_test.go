@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
 func TestConnectionArgs(t *testing.T) {

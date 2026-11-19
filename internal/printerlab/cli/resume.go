@@ -10,11 +10,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/probe"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/stages"
+	"github.com/cl-tim/hlab/internal/output"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/probe"
+	"github.com/cl-tim/hlab/internal/printerlab/stages"
 )
 
 // stageRunner executes a stage for one printer. Missing lists unresolved settings;

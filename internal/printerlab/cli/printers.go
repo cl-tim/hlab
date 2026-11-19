@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/output"
+	"github.com/cl-tim/hlab/internal/output"
 )
 
 func newPrintersCmd(a *app) *cobra.Command {

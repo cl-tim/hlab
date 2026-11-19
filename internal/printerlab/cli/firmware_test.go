@@ -13,12 +13,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cl-tim/homelab-cli/internal/printerlab/config"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/inventory"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/journal"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/probe"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/stages"
+	"github.com/cl-tim/hlab/internal/printerlab/config"
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
+	"github.com/cl-tim/hlab/internal/printerlab/journal"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/probe"
+	"github.com/cl-tim/hlab/internal/printerlab/stages"
 )
 
 // Only the test executable enables these subprocess stubs. Rendering still

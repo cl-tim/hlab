@@ -1,6 +1,6 @@
 BINARY  := hlab
 PKG     := ./cmd/hlab
-MODULE  := github.com/cl-tim/homelab-cli
+MODULE  := github.com/cl-tim/hlab
 
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 COMMIT  ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)

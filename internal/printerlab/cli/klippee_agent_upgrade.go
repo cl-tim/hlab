@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/cl-tim/homelab-cli/internal/output"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/migrate"
-	"github.com/cl-tim/homelab-cli/internal/printerlab/moonraker"
+	"github.com/cl-tim/hlab/internal/output"
+	"github.com/cl-tim/hlab/internal/printerlab/migrate"
+	"github.com/cl-tim/hlab/internal/printerlab/moonraker"
 )
 
 func newKlippeeUpgradeAgentCmd(a *app) *cobra.Command {
