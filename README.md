@@ -3,6 +3,9 @@
 A single compiled binary for managing a homelab fleet of Linux machines over
 SSH, and the Klipper printers beside them.
 
+**Updating or fixing a QIDI printer?** Start with the
+[printer guide](internal/printerlab/README.md). No enrollment or Klippee is needed.
+
 Describe your machines once in a YAML inventory, then act on them individually,
 by group, or by tag — in parallel, with structured output when you want to pipe
 it somewhere.
@@ -284,37 +287,19 @@ endpoints:
 
 ## Printers
 
-`hlab printer` covers Moonraker discovery, status, job history, Spoolman status,
-component maintenance, and Klippee workspaces for Klipper printers, including
-Voron and QIDI. Firmware commands include stock-QIDI upgrades using reviewed
-release profiles (initially Plus4 1.8.2 → 2.1.1) and Plus4 mainline migration.
+For a stock QIDI Plus4, follow the [step-by-step printer guide](internal/printerlab/README.md)
+to download hlab, check access, update firmware and apply fixes. You can use the
+printer's IP address directly; no enrollment, inventory file or Klippee is needed.
 
 ```bash
-hlab printer discover scan --emit    # prints a printerlab: section
-hlab printer printers
-hlab printer status
-hlab printer firmware releases
-hlab printer firmware update --target printer.local --check
-hlab printer firmware update --target printer.local -y
-hlab printer firmware update printer-a --version 2.1.1 --check
-hlab printer firmware fixes --target printer.local --check
-hlab printer firmware fixes --target printer.local -y
+hlab printer firmware update --target 192.168.1.50 --check
+hlab printer firmware fixes --target 192.168.1.50 --check
 ```
 
-Stock QIDI firmware can be updated directly with `--target HOST`, using existing
-SSH access and the newest reviewed release. No enrollment or inventory file is
-needed. Add `--version`, `--model`, `--user` or `--identity` when needed.
-
-`firmware fixes` independently applies the reviewed stock Plus4 1.8.2/2.1.1
-output-clock, power-loss recovery and log-space fixes. It also works without
-enrollment, retains a verified recovery backup, and verifies startup. See the
-[printer guide](internal/printerlab/README.md#stock-qidi-fixes) for scope,
-optional Box motion polling and rollback.
-
-Printers managed in an inventory are kept in the same `config.yaml`, under
-`printerlab:`, with their own `defaults` and `groups`. They are not hosts:
-`hlab run all` never reaches a printer. See the
-[printer guide](internal/printerlab/README.md).
+The [printer command reference](internal/printerlab/REFERENCE.md) covers optional
+saved printers, fleet status, print history, component maintenance, Spoolman,
+Klippee and mainline firmware migration. Saved printers live under `printerlab:`
+in hlab's config, separately from servers; `hlab run all` never reaches a printer.
 
 ## Authentication and host keys
 
