@@ -209,9 +209,10 @@ Moonraker history totals have been reset. Print time comes from finalized jobs.
 
 ## Klippee workspaces
 
-Klippee owns configuration: target identity, credentials, desired state, diffs,
-backups and history. hlab maps each printer to a local workspace folder and
-runs the installed Klippee client there.
+Klippee stores cloud configuration. hlab implements target identity, desired
+state comparison, backups and capture in Go, and maps each printer to a local
+workspace folder. No separately installed client is needed. The
+[native Klippee guide](../../docs/klippee.md) also covers standalone folders.
 
 `defaults.klippee.workspaceRoot` gives each printer `<root>\<printer>`;
 `printers[].klippee.workspace` overrides it for one printer, for example to

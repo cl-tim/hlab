@@ -110,22 +110,10 @@ func (r Runner) klippeeDiagnosticsSSHCommand(
 			"paths=[p for p in glob.glob(\"" + logPattern + "\") if os.path.isfile(p)];" +
 			"latest=max(paths,key=os.path.getmtime);" +
 			"os.execv(\"" + executable + "\",[\"klippee\",\"upload-diagnostics\",latest])"
-		remoteCommand := "python3 -c '" + python + "'"
-		if account != printer.User {
-			remoteCommand = "sudo -n -H -u " + account + " -- " + remoteCommand
-		}
-		args = append(args, remoteCommand)
+		args = append(args, klippeeFixedAccountDispatch(printer, []string{"upload-diagnostics", "--previous"}, "exec python3 -c "+quote(python))...)
 		return sshExecutable, args, nil
 	}
-	if account == printer.User {
-		args = append(args, executable, "upload-diagnostics")
-	} else {
-		args = append(
-			args,
-			"sudo", "-n", "-H", "-u", account, "--",
-			executable, "upload-diagnostics",
-		)
-	}
+	args = append(args, klippeeFixedAccountArgs(printer, "upload-diagnostics")...)
 	return sshExecutable, args, nil
 }
 

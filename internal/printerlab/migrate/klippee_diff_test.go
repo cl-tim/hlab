@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,9 +30,15 @@ func TestKlippeeDiffSSHCommandIsFixedToCurrentReadOnlyCLIContract(t *testing.T) 
 		"HOME=/home/mks", "USER=mks", "LOGNAME=mks",
 		"KLIPPEE_STATE_DIR=/home/mks/.klippee", "PATH=/usr/bin:/bin",
 		"LANG=C", "LC_ALL=C",
-		"/home/mks/.local/bin/klippee", "check", "--diff",
+		"/bin/sh", "-c",
 	}
-	if len(args) < len(want) || !reflect.DeepEqual(args[len(args)-len(want):], want) {
+	if len(args) <= len(want) || !reflect.DeepEqual(args[len(args)-len(want)-1:len(args)-1], want) {
 		t.Fatalf("SSH arguments ended with %#v; want %#v", args, want)
+	}
+	script := args[len(args)-1]
+	for _, argument := range []string{"/home/mks/.local/bin/hlab", "/home/mks/.local/bin/klippee", "check", "--diff"} {
+		if !strings.Contains(script, argument) {
+			t.Fatalf("fixed SSH check omitted %s", argument)
+		}
 	}
 }

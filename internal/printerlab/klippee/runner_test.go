@@ -129,11 +129,25 @@ func TestValidateRejectsMalformedConnection(t *testing.T) {
 	}
 }
 
-func TestValidateRequiresExecutable(t *testing.T) {
+func TestValidateUsesNativeClientWithoutExecutable(t *testing.T) {
 	runner, _ := validRunner(t)
 	runner.Executable = ""
-	if err := runner.Validate(); err == nil || !strings.Contains(err.Error(), "defaults.klippee.executable is empty") {
-		t.Fatalf("got %v, want executable error", err)
+	if err := runner.Validate(); err != nil {
+		t.Fatalf("native client should not require an executable: %v", err)
+	}
+}
+
+func TestDefaultRunnerSyncsWithoutPythonOrKlippeeExecutable(t *testing.T) {
+	runner, workspace := validRunner(t)
+	runner.Executable = "klippee"
+	runner.Out = io.Discard
+	t.Setenv("PATH", t.TempDir())
+	if err := runner.Run(context.Background(), "variables", "set", "fixture", "native-value"); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(workspace, "klippee_variables.cfg"))
+	if err != nil || !strings.Contains(string(data), "# KLIPPEE_VARIABLE fixture=native-value") {
+		t.Fatalf("native variable write failed: %s %v", data, err)
 	}
 }
 

@@ -1,5 +1,4 @@
-// Package klippee delegates desktop configuration sync to Klippee's own
-// dependency-light client while enforcing printerlab's workspace boundary.
+// Package klippee binds hlab's native sync client to a printer workspace.
 package klippee
 
 import (
@@ -13,14 +12,15 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	native "github.com/cl-tim/hlab/internal/klippee"
 )
 
 const connectionDirectory = ".klippee"
 const connectionFile = "config.json"
 
-// Runner executes the installed Klippee client in one printer's desktop
-// workspace. Service identity, repository identity, and the token remain in
-// Klippee's folder-scoped connection file and are never copied into plab.
+// Runner uses the native client by default. Explicit custom executable paths
+// remain supported for existing integrations during migration.
 type Runner struct {
 	Executable string
 	Workspace  string
@@ -83,8 +83,9 @@ func (r Runner) validated() (string, string, error) {
 	}
 
 	executable := strings.TrimSpace(r.Executable)
-	if executable == "" {
-		return "", "", fmt.Errorf("defaults.klippee.executable is empty")
+	if executable == "" || executable == "klippee" {
+		_, err := native.Load(context.Background(), filepath.Join(workspace, connectionDirectory, connectionFile), workspace)
+		return workspace, "", err
 	}
 	resolvedExecutable, err := exec.LookPath(executable)
 	if err != nil {
@@ -164,6 +165,14 @@ func (r Runner) Run(ctx context.Context, args ...string) error {
 	workspace, executable, err := r.validated()
 	if err != nil {
 		return err
+	}
+	if executable == "" {
+		cfg, err := native.Load(ctx, filepath.Join(workspace, connectionDirectory, connectionFile), workspace)
+		if err != nil {
+			return err
+		}
+		client := native.Client{Config: cfg, In: r.In, Out: r.Out, ErrOut: r.ErrOut}
+		return client.Run(ctx, args...)
 	}
 	command, err := commandContext(ctx, executable, args...)
 	if err != nil {

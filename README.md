@@ -287,6 +287,11 @@ endpoints:
 
 ## Printers
 
+Klippee configuration sync is native to hlab. Run `hlab klippee` in a connected
+configuration folder; no Python or separate Klippee CLI is needed for sync.
+See the [Klippee guide](docs/klippee.md) for setup, existing connections,
+variables, recovery, and compatibility with deployed printer agents.
+
 For a stock QIDI Plus4, follow the [step-by-step printer guide](internal/printerlab/README.md)
 to download hlab, check access, update firmware and apply fixes. You can use the
 printer's IP address directly; no enrollment, inventory file or Klippee is needed.

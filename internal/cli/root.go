@@ -14,6 +14,7 @@ import (
 	"github.com/cl-tim/hlab/internal/clikit"
 	"github.com/cl-tim/hlab/internal/config"
 	"github.com/cl-tim/hlab/internal/inventory"
+	"github.com/cl-tim/hlab/internal/klippee"
 	"github.com/cl-tim/hlab/internal/output"
 	printercli "github.com/cl-tim/hlab/internal/printerlab/cli"
 	"github.com/cl-tim/hlab/internal/sshx"
@@ -112,6 +113,7 @@ func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	f.BoolVar(&a.insecureHostKey, "insecure-host-key", false, "skip SSH host key verification (unsafe; for bootstrapping only)")
 
 	root.AddCommand(
+		klippee.NewCommand(stdin, stdout, stderr),
 		printercli.NewCommand(stdin, stdout, stderr),
 		clikit.NewVersionCmd(a.out, func() output.Format { return a.format }),
 		newConfigCmd(a),

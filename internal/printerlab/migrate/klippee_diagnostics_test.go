@@ -32,8 +32,8 @@ func TestKlippeeDiagnosticsSSHCommandIsFixedAndTargetsPrinterUser(t *testing.T) 
 	for _, expected := range []string{
 		"ConnectTimeout=12", "BatchMode=yes", "StrictHostKeyChecking=yes",
 		"IdentitiesOnly=yes",
-		"plab@fixturePrinterA.example", "sudo\x00-n\x00-H\x00-u\x00mks\x00--",
-		"/home/mks/.local/bin/klippee\x00upload-diagnostics",
+		"plab@fixturePrinterA.example", "sudo\x00-n\x00-u\x00mks\x00--",
+		"/home/mks/.local/bin/hlab", "/home/mks/.local/bin/klippee", "upload-diagnostics",
 	} {
 		if !strings.Contains(joined, expected) {
 			t.Fatalf("args %q missing %q", joined, expected)
@@ -92,6 +92,8 @@ func TestKlippeePreviousDiagnosticsSSHCommandIsFixed(t *testing.T) {
 		"python3 -c",
 		"/home/mks/printer_data/logs/klippy.log.*",
 		"/home/mks/.local/bin/klippee",
+		"/home/mks/.local/bin/hlab",
+		"--previous",
 		"upload-diagnostics",
 	} {
 		if !strings.Contains(joined, expected) {

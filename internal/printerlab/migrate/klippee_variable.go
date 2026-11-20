@@ -10,6 +10,8 @@ import (
 	"io"
 	"regexp"
 	"strings"
+
+	"github.com/cl-tim/hlab/internal/printerlab/inventory"
 )
 
 const (
@@ -81,7 +83,7 @@ func ParseKlippeeVariableSet(raw []byte) (KlippeeVariableSetResult, error) {
 	}
 	if result.Schema != KlippeeVariableSetSchema || result.OK == nil ||
 		result.Verified == nil || result.ConfigDeployed == nil ||
-		result.Account != BoxClockGuardAccount || result.CLIPath != KlippeeVariableCLIPath ||
+		result.Account != BoxClockGuardAccount || !klippeeVariableExecutable(result.CLIPath) ||
 		!klippeeVariableNamePattern.MatchString(result.Name) ||
 		!boxClockGuardDigestPattern.MatchString(result.ValueSHA256) ||
 		*result.ConfigDeployed || result.KlipperAction != "none" {
@@ -96,4 +98,42 @@ func ParseKlippeeVariableSet(raw []byte) (KlippeeVariableSetResult, error) {
 		return result, fmt.Errorf("failed Klippee variable-set returned inconsistent proof")
 	}
 	return result, nil
+}
+
+func klippeeVariableExecutable(path string) bool {
+	switch path {
+	case KlippeeVariableCLIPath, "/home/mks/.local/bin/hlab", "/usr/local/bin/hlab", "/usr/bin/hlab":
+		return true
+	default:
+		return false
+	}
+}
+
+func (b *nativeBackend) setKlippeeVariable() error {
+	if err := b.confirm(KlippeeVariableSetAction); err != nil {
+		return err
+	}
+	name, value := b.value("name"), b.value("value")
+	if b.account() != BoxClockGuardAccount || !klippeeVariableNamePattern.MatchString(name) ||
+		len(value) > 4096 || strings.ContainsAny(value, "\x00\r\n") {
+		return fmt.Errorf("invalid printer account, variable name, or variable value")
+	}
+	printer := inventory.Printer{User: b.value("user"), PrinterUser: b.account()}
+	dispatch := klippeeFixedAccountDispatch(printer, []string{"set-variable-proof", name},
+		"printf '%s\\n' 'Install hlab with Klippee support on this printer' >&2; exit 1")
+	raw, code, runErr := b.sshCapture(strings.Join(dispatch, " "), []byte(value))
+	if len(raw) == 0 && runErr != nil {
+		return runErr
+	}
+	result, err := ParseKlippeeVariableSet(raw)
+	if err != nil {
+		return err
+	}
+	if (code == 0) != result.Succeeded() || result.Name != name || result.ValueSHA256 != KlippeeVariableValueSHA256(value) {
+		return fmt.Errorf("remote variable update returned inconsistent proof")
+	}
+	if _, err := b.out.Write(raw); err != nil {
+		return err
+	}
+	return runErr
 }
