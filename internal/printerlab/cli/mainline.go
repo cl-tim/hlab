@@ -113,6 +113,9 @@ func newMainlinePreflightCmd(a *app) *cobra.Command {
 }
 
 func (a *app) migrationRunner() migrate.Runner {
+	if a.cfg == nil {
+		return migrate.Runner{Home: config.Home(), Out: a.out, ErrOut: a.errOut}
+	}
 	var bootstrapPasswordEnvironments []string
 	if a.cfg.Inventory != nil {
 		seen := map[string]struct{}{}

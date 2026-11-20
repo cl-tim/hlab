@@ -21,6 +21,12 @@ func (b *nativeBackend) account() string {
 	}
 	return b.value("user")
 }
+
+// ValidateSSHConnection checks target syntax without connecting or changing it.
+// The same rules apply to inventory entries and transient firmware targets.
+func ValidateSSHConnection(printer inventory.Printer) error {
+	return validateKlippeeDiagnosticsSSHPrinter(printer)
+}
 func (b *nativeBackend) connection() (inventory.Printer, error) {
 	port, err := strconv.Atoi(b.value("port"))
 	if err != nil {

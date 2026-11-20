@@ -17,9 +17,14 @@ func newFirmwareUpdateCmd(a *app) *cobra.Command {
 	var wait time.Duration
 	var version, configPolicy, firmwareDir string
 	var hostOnly bool
+	var target firmwareUpdateTarget
 	command := &cobra.Command{
-		Use: "update PRINTER", Short: "Update stock QIDI firmware or mainline Klipper",
-		Long: "For stock QIDI printers, select a reviewed --version from firmware releases.\n" +
+		Use: "update [PRINTER]", Short: "Update stock QIDI firmware or mainline Klipper",
+		Long: "Stock QIDI updates use reviewed releases listed by firmware releases.\n" +
+			"Use --target HOST to update a stock QIDI printer without an inventory entry.\n" +
+			"Direct targets default to the newest reviewed release; --version pins a release.\n" +
+			"Direct targets use only command-line connection settings and normal SSH access;\n" +
+			"no configuration is loaded, no printer is enrolled, and no account/key is installed.\n" +
 			"Verify and retain a desktop recovery backup, install the vendor Linux package\n" +
 			"and touchscreen image, preserve configuration unless --config-policy vendor\n" +
 			"is selected, then verify startup. --host-only explicitly skips the screen.\n\n" +
@@ -29,18 +34,36 @@ func newFirmwareUpdateCmd(a *app) *cobra.Command {
 			"Controller flashing and Python dependency migrations remain separate operations.\n" +
 			"With --check, fetch upstream and verify the current host without changing its\n" +
 			"checkout or restarting it. SSH and a working loopback Moonraker API are required.",
-		Args: cobra.ExactArgs(1),
+		Example: "  hlab printer firmware update --target printer.local --check\n" +
+			"  hlab printer firmware update --target 192.0.2.20 --version 2.1.1 -y\n" +
+			"  hlab printer firmware update saved-printer --version 2.1.1 --check",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if directFirmwareUpdate(cmd) {
+				if len(args) != 0 {
+					return fmt.Errorf("use either a saved PRINTER or --target HOST")
+				}
+				return nil
+			}
+			return cobra.ExactArgs(1)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !check {
 				if err := a.requireApproval("printer firmware update"); err != nil {
 					return err
 				}
 			}
-			printer, err := a.onePrinter(args[0])
+			printer, err := a.firmwareUpdatePrinter(cmd, args, target, version)
 			if err != nil {
 				return err
 			}
 			if printer.Firmware == inventory.FirmwareStock {
+				if directFirmwareUpdate(cmd) {
+					release, err := migrate.SelectQIDIRelease(printer.Model, version)
+					if err != nil {
+						return err
+					}
+					version = release.Version
+				}
 				return a.updateQIDI(cmd, printer, version, configPolicy, firmwareDir, hostOnly, check, wait)
 			}
 			if err := migrate.RequirePlus4(printer); err != nil {
@@ -97,10 +120,11 @@ func newFirmwareUpdateCmd(a *app) *cobra.Command {
 		},
 	}
 	command.Flags().BoolVar(&check, "check", false, "check prerequisites without installing or restarting (mainline also fetches upstream)")
-	command.Flags().StringVar(&version, "version", "", "stock QIDI release from firmware releases (required for stock printers)")
+	command.Flags().StringVar(&version, "version", "", "stock QIDI release (direct targets default to newest reviewed; saved stock printers require a version)")
 	command.Flags().StringVar(&firmwareDir, "firmware-dir", "", "use verified vendor payload files from this PC instead of downloading on the printer")
 	command.Flags().BoolVar(&hostOnly, "host-only", false, "update stock QIDI Linux firmware without flashing the touchscreen")
 	command.Flags().StringVar(&configPolicy, "config-policy", "preserve", "stock QIDI configuration policy: preserve existing files, or install vendor defaults")
 	command.Flags().DurationVar(&wait, "wait-timeout", 3*time.Minute, "maximum startup verification time (including host tuning)")
+	target.addFlags(command)
 	return command
 }

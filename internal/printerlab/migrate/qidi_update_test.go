@@ -139,3 +139,25 @@ func TestQIDIReviewedCatalogHasNoMachineSpecificValues(t *testing.T) {
 		}
 	}
 }
+
+func TestStandaloneQIDIReleaseSelectionUsesNewestReviewedVersionAndRejectsAmbiguousModels(t *testing.T) {
+	releases := []QIDIRelease{{Model: "plus4", Version: "1.8.2"}, {Model: "plus4", Version: "2.9.0"}, {Model: "plus4", Version: "2.10.0"}}
+	got, err := selectQIDIRelease(releases, "", "")
+	if err != nil || got.Version != "2.10.0" {
+		t.Fatalf("newest release: %v %v", got, err)
+	}
+	got, err = selectQIDIRelease(releases, "plus4", "1.8.2")
+	if err != nil || got.Version != "1.8.2" {
+		t.Fatalf("explicit release: %v %v", got, err)
+	}
+	releases = append(releases, QIDIRelease{Model: "another-model", Version: "2.10.0"})
+	for _, version := range []string{"", "2.10.0"} {
+		if _, err := selectQIDIRelease(releases, "", version); err == nil || !strings.Contains(err.Error(), "--model") {
+			t.Fatalf("ambiguous model accepted: %v", err)
+		}
+	}
+	got, err = selectQIDIRelease(releases, "plus4", "")
+	if err != nil || got.Model != "plus4" || got.Version != "2.10.0" {
+		t.Fatalf("explicit model: %v %v", got, err)
+	}
+}

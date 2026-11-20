@@ -80,6 +80,41 @@ func QIDIReleaseFor(model, version string) (QIDIRelease, error) {
 	return QIDIRelease{}, fmt.Errorf("no reviewed QIDI %s firmware %s; use firmware releases (arbitrary package URLs are not accepted)", model, version)
 }
 
+// SelectQIDIRelease resolves standalone CLI defaults only from the reviewed
+// catalogue. Ambiguous models require an explicit selection; live preflight
+// still verifies the printer's actual device marker against this profile.
+func SelectQIDIRelease(model, version string) (QIDIRelease, error) {
+	releases, err := QIDIReleases()
+	if err != nil {
+		return QIDIRelease{}, err
+	}
+	return selectQIDIRelease(releases, model, version)
+}
+
+func selectQIDIRelease(releases []QIDIRelease, model, version string) (QIDIRelease, error) {
+	var selected QIDIRelease
+	var latest [3]int
+	for _, release := range releases {
+		if model != "" && release.Model != model || version != "" && release.Version != version {
+			continue
+		}
+		if selected.Model != "" && selected.Model != release.Model {
+			return QIDIRelease{}, fmt.Errorf("multiple reviewed QIDI models match; select --model")
+		}
+		key, err := kernelVersion(release.Version)
+		if err != nil {
+			return QIDIRelease{}, fmt.Errorf("invalid reviewed QIDI release version %q", release.Version)
+		}
+		if selected.Model == "" || kernelOlder(latest, key) {
+			selected, latest = release, key
+		}
+	}
+	if selected.Model == "" {
+		return QIDIRelease{}, fmt.Errorf("no reviewed QIDI release matches model %q and version %q; use firmware releases", model, version)
+	}
+	return selected, nil
+}
+
 type QIDIUpdateResult struct {
 	Schema          int    `json:"schema" yaml:"schema"`
 	OK              bool   `json:"ok" yaml:"ok"`

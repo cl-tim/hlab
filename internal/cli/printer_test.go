@@ -69,6 +69,29 @@ func TestReadingPrintersDoesNotCreateTheConfig(t *testing.T) {
 	}
 }
 
+func TestStandaloneFirmwareTargetBypassesBothInventories(t *testing.T) {
+	hostHome, printerHome := isolateHomes(t)
+	broken := filepath.Join(t.TempDir(), "broken.yaml")
+	if err := os.WriteFile(broken, []byte("bad: [yaml"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv(config.EnvConfigPath, broken)
+	t.Setenv(printerconfig.EnvConfigPath, broken)
+	_, _, err := runRoot(t, "printer", "firmware", "update", "--target", "https://invalid.example", "--check")
+	if err == nil || !strings.Contains(err.Error(), "invalid SSH host") {
+		t.Fatalf("direct target did not bypass inventory: %v", err)
+	}
+	for _, home := range []string{hostHome, printerHome} {
+		entries, err := os.ReadDir(home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(entries) != 0 {
+			t.Fatalf("direct target wrote an inventory: %v", entries)
+		}
+	}
+}
+
 // The point of the merge: one config.yaml, and both command trees work from it.
 func TestHostsAndPrintersShareOneConfig(t *testing.T) {
 	hostHome, _ := isolateHomes(t)

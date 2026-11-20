@@ -74,8 +74,8 @@ func (a *app) updateQIDI(cmd *cobra.Command, printer inventory.Printer, version,
 	if result.Model != printer.Model || result.Target != version || result.CheckOnly != check || result.HostOnly != hostOnly || result.ConfigPolicy != policy {
 		return fmt.Errorf("QIDI update receipt does not match the requested operation")
 	}
-	table := output.Table{Headers: []string{"PRINTER", "STATUS", "VERSION", "SCREEN", "LOCAL BACKUP", "DETAIL"}}
-	table.AddRow(printer.Name, result.Status, result.After, result.ScreenStatus, result.LocalBackup, result.Error)
+	table := output.Table{Headers: []string{"PRINTER", "STATUS", "VERSION", "TARGET", "SCREEN", "LOCAL BACKUP", "DETAIL"}}
+	table.AddRow(printer.Name, result.Status, result.After, result.Target, result.ScreenStatus, result.LocalBackup, result.Error)
 	if err := output.Write(a.out, a.format, result, table); err != nil {
 		return err
 	}

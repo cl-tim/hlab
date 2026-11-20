@@ -107,6 +107,9 @@ func (a *app) requireApproval(action string) error {
 }
 
 func skipsConfig(cmd *cobra.Command) bool {
+	if directFirmwareUpdate(cmd) {
+		return true
+	}
 	if cmd.Name() == "releases" && cmd.Parent() != nil && cmd.Parent().Name() == "firmware" {
 		return true
 	}

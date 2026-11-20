@@ -294,12 +294,19 @@ hlab printer discover scan --emit    # prints a printerlab: section
 hlab printer printers
 hlab printer status
 hlab printer firmware releases
+hlab printer firmware update --target printer.local --check
+hlab printer firmware update --target printer.local -y
 hlab printer firmware update printer-a --version 2.1.1 --check
 ```
 
-Printers are kept in the same `config.yaml`, under `printerlab:`, with their
-own `defaults` and `groups`. They are not hosts: `hlab run all` never reaches a
-printer. See the [printer guide](internal/printerlab/README.md).
+Stock QIDI firmware can be updated directly with `--target HOST`, using existing
+SSH access and the newest reviewed release. No enrollment or inventory file is
+needed. Add `--version`, `--model`, `--user` or `--identity` when needed.
+
+Printers managed in an inventory are kept in the same `config.yaml`, under
+`printerlab:`, with their own `defaults` and `groups`. They are not hosts:
+`hlab run all` never reaches a printer. See the
+[printer guide](internal/printerlab/README.md).
 
 ## Authentication and host keys
 

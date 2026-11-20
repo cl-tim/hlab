@@ -315,14 +315,42 @@ Moonraker or extensions, or touch `SAVE_CONFIG`.
 ```powershell
 hlab printer firmware releases                       # works without an inventory
 hlab printer firmware releases plus4 -o json          # versions, URLs and pinned SHA-256 values
+hlab printer firmware update --target printer.local --check
+hlab printer firmware update --target printer.local -y
+hlab printer firmware update --target 192.0.2.20 --version 2.1.1 --user mks --identity ~/.ssh/printer -y
+hlab printer firmware update --target printer.local --firmware-dir ./downloads -y
 hlab printer firmware update printer-a --version 2.1.1 --check
 hlab printer firmware update printer-a --version 2.1.1 -y
 hlab printer firmware update printer-a --version 2.1.1 --firmware-dir ./downloads -y
 ```
 
-The inventory must declare `firmware: stock` and the matching model. SSH key
-access, noninteractive root sudo, ready/idle Klipper, every heater target at
-zero, and at least 1 GiB free disk are required. This is independent of Klippee:
+**Standalone use:** `--target HOST` accepts one hostname or IPv4 address and
+bypasses inventory entirely, including any `--config` or configuration-file
+environment settings. It never enrolls a printer, saves an inventory entry,
+creates a management account or installs an SSH key. Existing hlab installations
+can use the same mode without inheriting connection settings from saved devices.
+
+Without `--version`, direct targets select the newest release in hlab's reviewed
+catalogue. The model is inferred only when that selection has one model; use
+`--model plus4` if multiple models match. The printer's live device identity
+must still match the selected profile before installation. `--version 2.1.1`
+selects that reviewed version explicitly. There is no unreviewed `latest` URL.
+
+Direct targets default to the profile's printer account (`mks` for Plus4), SSH
+port 22 and loopback Moonraker port 7125. Use `--user`, `--ssh-port`, `--identity`,
+`--moonraker-port` and `--api-key-env` to supply connection settings. SSH uses
+normal OpenSSH authentication and host-key handling; existing working SSH access
+is required. A different SSH management account can be used with `--user`; the
+Klipper installation owner remains the account required by the release profile.
+Local tool caches and verified recovery backups are still kept under `PLAB_HOME`.
+
+**Saved printers:** omit `--target` and supply a saved printer name. Its inventory
+must declare `firmware: stock` and the matching model; `--version` is required.
+Connection overrides above require `--target` and are rejected for saved names.
+A misspelled saved name never becomes a direct network target automatically.
+
+Both modes require noninteractive root sudo, ready/idle Klipper, every heater
+target at zero, and at least 1 GiB free disk. This is independent of Klippee:
 an ordinary QIDI installation does not need a Klippee account or workspace.
 If a Klippee agent is installed, it must prove no operation is running; hlab
 stops it during installation and restores it afterwards.
