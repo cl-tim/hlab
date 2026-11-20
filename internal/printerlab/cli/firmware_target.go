@@ -28,7 +28,7 @@ func (target *firmwareUpdateTarget) addFlags(cmd *cobra.Command) {
 // Only an explicit flag bypasses inventory. A misspelled saved name must never
 // silently become a network address, and an empty --target must fail closed.
 func directFirmwareUpdate(cmd *cobra.Command) bool {
-	return cmd.Name() == "update" && cmd.Parent() != nil && cmd.Parent().Name() == "firmware" && cmd.Flags().Changed("target")
+	return (cmd.Name() == "update" || cmd.Name() == "fixes") && cmd.Parent() != nil && cmd.Parent().Name() == "firmware" && cmd.Flags().Changed("target")
 }
 
 func (a *app) firmwareUpdatePrinter(cmd *cobra.Command, args []string, target firmwareUpdateTarget, version string) (inventory.Printer, error) {

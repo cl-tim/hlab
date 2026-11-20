@@ -75,7 +75,7 @@ func (b *nativeBackend) execute(args []string) error {
 		pointers[name] = fs.String(name, defaults[name], "")
 	}
 	bools := map[string]*bool{}
-	for _, name := range strings.Fields("list-only json include-facts include-gcodes include-logs include-environments commissioning force generate reuse check host-only") {
+	for _, name := range strings.Fields("list-only json include-facts include-gcodes include-logs include-environments commissioning force generate reuse check host-only box-motion-polling") {
 		bools[name] = fs.Bool(name, false, "")
 	}
 	var ids repeatedStrings
@@ -174,6 +174,8 @@ func (b *nativeBackend) execute(args []string) error {
 		return b.updateKlipper()
 	case "update-qidi":
 		return b.updateQIDI()
+	case "qidi-fixes":
+		return b.qidiFixes()
 	default:
 		return fmt.Errorf("unknown migration stage %q", b.stage)
 	}

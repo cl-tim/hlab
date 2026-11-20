@@ -310,6 +310,81 @@ command still exits with failure and reports whether recovery worked.
 It updates the Klipper host only. It does not flash controllers, update
 Moonraker or extensions, or touch `SAVE_CONFIG`.
 
+### Stock QIDI fixes
+
+Apply the reviewed fixes independently of an upgrade, including after installing
+2.1.1 with QIDI's own updater. No inventory, enrollment or Klippee agent is
+required. The same `--target`, `--model`, `--user`, `--identity`, `--ssh-port`,
+`--moonraker-port` and `--api-key-env` options as the updater are supported.
+Alternatively supply a saved printer declaring `firmware: stock` and model
+`plus4`. This command checks the **installed** version; it does not flash firmware.
+
+```powershell
+hlab printer firmware fixes --target printer.local --check
+hlab printer firmware fixes --target printer.local -y
+# Optional watchdog containment, in both active configuration and Box templates:
+hlab printer firmware fixes --target printer.local --box-motion-polling --check
+hlab printer firmware fixes --target printer.local --box-motion-polling -y
+```
+
+| Fix | Stock 1.8.2 | Stock 2.1.1 |
+| --- | --- | --- |
+| Box output-clock guard | Install and activate | Install and activate; live review confirmed the defect remains |
+| Hardened power-loss recovery | Install manifest-bound runtime and checkpoint patch | Same; the vendor still supplies the legacy recovery builder |
+| Journal size/retention limits and archive cleanup timer | Apply to detected small Armbian ramlog layout | Same layout check; skip with a note on other layouts |
+| Box `is_tool_change` status shim | Install and activate | Preserve an existing shim; do not add one because continued need is unproven |
+| Box motion-sensor polling | Optional `--box-motion-polling` | Optional mitigation for the unchanged Box IRQ path; a watchdog failure was not reproduced on 2.1.1 |
+
+The clock guard also quarantines **automatic RFID insertion** unless the existing
+saved variable `qidi_box_auto_insert=1` explicitly enables it. Manual loading is
+preserved. Polling keeps the motion sensor enabled, sets `use_irq: False` and
+removes the IRQ-only debounce option in active Box sections and existing
+`cfg_with_1` through `cfg_with_4` templates. It does not flash or repair MCU
+interrupt code, and neither guard fixes USB/power faults. No loading, motion,
+heating or power-loss recovery operation is run to test installation.
+
+The command requires existing SSH access, noninteractive root sudo, the stock
+`mks` installation layout and ready/idle Klipper with all heater targets at zero.
+Only **Plus4 1.8.2 and 2.1.1** are accepted. Configuration includes are preserved;
+add-on symlinks can be read only within the printer home. Unsafe paths, duplicate
+sections, unexpected PLR source or a nonstandard recovery command are refused.
+An existing Klippee agent must prove quiescent and is stopped during edits.
+If another tool manages printer configuration, retain the added guard sections
+and optional polling settings in that tool's desired configuration as well.
+
+`--check` reads the live layout, firmware, configuration and PLR plan. It stages
+the bundled installer in a temporary directory but edits no live configuration,
+enables no service and performs no restart. It reports the exact planned paths
+and skipped fixes. Apply first retains originals and metadata in a root-owned
+transaction, copies `recovery.tar.gz` to `PLAB_HOME/backups/qidi-fixes/`, and
+checks its SHA-256 before authorizing changes. It then stops Klipper, installs,
+restarts the host service and checks controllers and guard status. Repeat runs
+with the same options make no edits when everything is already current.
+
+The result includes the remote recovery transaction path and desktop backup
+path. To undo that transaction, pass its exact returned path:
+
+```powershell
+hlab printer firmware fixes --target printer.local --rollback /var/lib/hlab/qidi-fixes/TRANSACTION -y
+```
+
+Rollback restores original files and metadata, removes files introduced by that
+transaction, restores journal-timer enablement, and verifies startup. It refuses
+a firmware change or subsequent user file edits after a successful install.
+The PLR installer's separate rollback manifest is also retained in the root-owned
+transaction. A failed activation leaves Klipper stopped; inspect the receipt
+and use its rollback handle rather than retrying installation blindly. Keep
+backups private because they contain printer configuration. Log retention can
+expire old journal history; rollback cannot restore expired logs. Firmware
+upgrades and fixes share a lock and must not run concurrently. Firmware updates
+do not apply these optional maintenance changes automatically; run `fixes`
+after an upgrade to check them again.
+
+References: [2.1.1 live findings](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/firmware/FIRMWARE-2.1.1-LIVE-REVIEW.md),
+[PLR repair](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/fixes/PLR-TIMER-TOO-CLOSE.md),
+[clock guard](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/fixes/QIDI-BOX-OUTPUT-CLOCK-GUARD.md),
+[log limits](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/fixes/INSTALL-LOG-AND-BOX-FIXES.md).
+
 ### Updating stock QIDI firmware
 
 ```powershell

@@ -16,6 +16,17 @@ attribution and review references, not installation dependencies.
   Its BSD notice is included in `LICENSE.xz` and the executable's asset bundle.
 
 Runtime output paths and the default profile are adapted for Printerlab.
+
+`qidi-fixes/box_output_clock_guard.py` and `box_status_compat.py` are copied
+without code changes from `qidi-plus4-firmware` commit
+`57a95ba0b7149018487984af83beb08f325891ac`, under its `qidibox-modules/` GPLv3
+license, included at `qidi-fixes/LICENSE`. They run as separate printer-side
+Klipper extensions; no compiled QIDI binaries are shipped. The maintenance
+orchestrator is maintained by hlab and reuses the existing manifest-bound PLR
+bundle. Log-limit settings follow that commit's
+`docs/fixes/INSTALL-LOG-AND-BOX-FIXES.md`. Firmware scope and the decision not
+to add the legacy status shim on 2.1.1 follow its installed-printer review.
+
 Workstation orchestration was ported to `internal/migrate/native*.go` on
 2026-10-04. The former local Python tools were removed. Their reviewed probe
 decisions are retained in `internal/migrate/testdata/probe-reference.json` as

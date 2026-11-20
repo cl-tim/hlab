@@ -297,11 +297,19 @@ hlab printer firmware releases
 hlab printer firmware update --target printer.local --check
 hlab printer firmware update --target printer.local -y
 hlab printer firmware update printer-a --version 2.1.1 --check
+hlab printer firmware fixes --target printer.local --check
+hlab printer firmware fixes --target printer.local -y
 ```
 
 Stock QIDI firmware can be updated directly with `--target HOST`, using existing
 SSH access and the newest reviewed release. No enrollment or inventory file is
 needed. Add `--version`, `--model`, `--user` or `--identity` when needed.
+
+`firmware fixes` independently applies the reviewed stock Plus4 1.8.2/2.1.1
+output-clock, power-loss recovery and log-space fixes. It also works without
+enrollment, retains a verified recovery backup, and verifies startup. See the
+[printer guide](internal/printerlab/README.md#stock-qidi-fixes) for scope,
+optional Box motion polling and rollback.
 
 Printers managed in an inventory are kept in the same `config.yaml`, under
 `printerlab:`, with their own `defaults` and `groups`. They are not hosts:

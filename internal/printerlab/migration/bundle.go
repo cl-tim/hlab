@@ -13,7 +13,7 @@ import (
 
 // Runtime source and notices are embedded; tests and generated outputs are not.
 //
-//go:embed tools/migration/update-klipper.py tools/migration/update-qidi.py tools/migration/upgrade-klippee-agent.py tools/migration/*.sh tools/migration/*.cfg tools/migration/*.json firmware-configs mainline-configs plr-hardening LICENSE.* SOURCES.md
+//go:embed tools/migration/apply-qidi-fixes.py tools/migration/update-klipper.py tools/migration/update-qidi.py tools/migration/upgrade-klippee-agent.py tools/migration/*.sh tools/migration/*.cfg tools/migration/*.json firmware-configs mainline-configs plr-hardening qidi-fixes LICENSE.* SOURCES.md
 var files embed.FS
 
 var bundleID = digest()

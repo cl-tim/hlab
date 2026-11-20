@@ -29,6 +29,6 @@ jobs:
       - name: Test
         run: go test -race ./...
       - name: Stock QIDI updater fixtures
-        run: python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p test_qidi_updater.py -v
+        run: python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_qidi_*.py' -v
       - name: Cross-compile
         run: make release
