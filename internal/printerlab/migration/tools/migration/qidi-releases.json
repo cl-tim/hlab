@@ -1,0 +1,28 @@
+[
+  {
+    "model": "plus4",
+    "version": "2.1.1",
+    "device_marker": "QIDI@x-plus_4",
+    "account": "mks",
+    "architecture": "aarch64",
+    "package_name": "qidi-x-plus4",
+    "package_arch": "arm64",
+    "version_file": "/root/xindi/version",
+    "screen_device": "/dev/ttyS1",
+    "screen_version": "V211",
+    "minimum_version": "1.8.2",
+    "source": "https://wiki.qidi3d.com/en/X-Plus4/Manual/firmware-update",
+    "host": {
+      "url": "https://download_aliyun.qidi3dprinter.com/QD_Plus4/QD_Plus4_SOC",
+      "sha256": "2548a0e1b0a59f6bb78ac28cb6955f828701bbbc6050ab015080a7010c4bb813",
+      "bytes": 17691376
+    },
+    "screen": {
+      "url": "https://download_aliyun.qidi3dprinter.com/QD_Plus4/QD_Plus4_UI",
+      "sha256": "df71c47d89a513a587a1ce7c50e0ed94af6f4cfc52aa26d4a359abd47a49071c",
+      "bytes": 20540552
+    },
+    "preserve_paths": ["home/mks/cfg_with_0", "home/mks/cfg_with_1", "home/mks/cfg_with_2", "home/mks/cfg_with_3", "home/mks/cfg_with_4", "home/mks/scripts/plr/plr.sh"],
+    "removed_globs": ["home/mks/klipper/klippy/extras/aht20_f.*", "home/mks/klipper/klippy/extras/box_detect.*", "home/mks/klipper/klippy/extras/box_extras.*", "home/mks/klipper/klippy/extras/box_rfid.*", "home/mks/klipper/klippy/extras/box_stepper.*", "home/mks/klipper/klippy/extras/buttons_irq.*", "home/mks/klipper/klippy/extras/multi_color_controller.*", "home/mks/moonraker/moonraker/components/extensions.*", "home/mks/moonraker/moonraker/components/frp_manager.*", "home/mks/moonraker/moonraker/components/mqtt.*", "home/mks/mcu_box_to_v1_*.bin"]
+  }
+]

@@ -25,7 +25,7 @@ func newFirmwareCmd(a *app) *cobra.Command {
 	advanced.Use, advanced.Short, advanced.Hidden = "advanced", "Individual migration operations and recovery tools", false
 	status := newMainlineStateCmd(a)
 	status.Use, status.Short = "status PRINTER", "Show firmware migration progress and live verification"
-	command.AddCommand(newFirmwarePrepareCmd(a), newFirmwareMigrateCmd(a), newFirmwareWriteEMMCCmd(a), newFirmwareUpdateCmd(a), status, advanced)
+	command.AddCommand(newFirmwarePrepareCmd(a), newFirmwareMigrateCmd(a), newFirmwareWriteEMMCCmd(a), newFirmwareUpdateCmd(a), newFirmwareReleasesCmd(a), status, advanced)
 	return command
 }
 

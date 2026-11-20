@@ -25,3 +25,17 @@ Preserve source notices when changing these files. Review backend, firmware
 fragments, runtime profiles and regression tests together when updating them.
 The Go bundle ID hashes the embedded paths and contents, so each executable
 extracts its own version of the tools and checks it before use.
+
+## Stock QIDI release catalogue
+
+`tools/migration/qidi-releases.json` pins the Plus4 2.1.1 SoC and touchscreen
+payloads from QIDI's Aliyun OTA service. The payloads were inspected on
+2026-11-11; host embedded versions are SOC V2.1.1, UI V211, MCU V0.12.0.
+The catalogue records the exact URLs, byte lengths and SHA-256 hashes; vendor
+binaries are downloaded at runtime and are not embedded or redistributed.
+
+References:
+
+- [Official update procedure](https://wiki.qidi3d.com/en/X-Plus4/Manual/firmware-update)
+- [Package/installer analysis](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/firmware/FIRMWARE-2.1.1.md)
+- [Upload protocol](https://itead.cc/nextion/nextion-hmi-upload-protocol/comment-page-1/)

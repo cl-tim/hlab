@@ -15,9 +15,15 @@ import (
 func newFirmwareUpdateCmd(a *app) *cobra.Command {
 	var check bool
 	var wait time.Duration
+	var version, configPolicy, firmwareDir string
+	var hostOnly bool
 	command := &cobra.Command{
-		Use: "update PRINTER", Short: "Update mainline Klipper and verify startup",
-		Long: "Update one idle printer's Klipper host to the latest official master revision.\n" +
+		Use: "update PRINTER", Short: "Update stock QIDI firmware or mainline Klipper",
+		Long: "For stock QIDI printers, select a reviewed --version from firmware releases.\n" +
+			"Verify and retain a desktop recovery backup, install the vendor Linux package\n" +
+			"and touchscreen image, preserve configuration unless --config-policy vendor\n" +
+			"is selected, then verify startup. --host-only explicitly skips the screen.\n\n" +
+			"For mainline printers, update Klipper to the latest official master revision.\n" +
 			"Preserve configuration and extensions, retain a rollback backup, and verify the\n" +
 			"service, controllers, Beacon and installed host tuning. Roll back a failed startup.\n" +
 			"Controller flashing and Python dependency migrations remain separate operations.\n" +
@@ -26,7 +32,7 @@ func newFirmwareUpdateCmd(a *app) *cobra.Command {
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !check {
-				if err := a.requireApproval("Klipper host update"); err != nil {
+				if err := a.requireApproval("printer firmware update"); err != nil {
 					return err
 				}
 			}
@@ -34,11 +40,17 @@ func newFirmwareUpdateCmd(a *app) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if printer.Firmware == inventory.FirmwareStock {
+				return a.updateQIDI(cmd, printer, version, configPolicy, firmwareDir, hostOnly, check, wait)
+			}
 			if err := migrate.RequirePlus4(printer); err != nil {
 				return err
 			}
 			if printer.Firmware != inventory.FirmwareMainline {
 				return fmt.Errorf("%s: firmware update requires a declared mainline printer", printer.Name)
+			}
+			if version != "" || hostOnly || configPolicy != "preserve" || firmwareDir != "" {
+				return fmt.Errorf("--version, --host-only, --firmware-dir and --config-policy apply only to stock QIDI firmware")
 			}
 			if wait < 5*time.Second || wait > 10*time.Minute || wait%time.Second != 0 {
 				return fmt.Errorf("--wait-timeout must be a whole number of seconds from 5s to 10m")
@@ -84,7 +96,11 @@ func newFirmwareUpdateCmd(a *app) *cobra.Command {
 			return nil
 		},
 	}
-	command.Flags().BoolVar(&check, "check", false, "check upstream revision and current startup without updating or restarting")
+	command.Flags().BoolVar(&check, "check", false, "check prerequisites without installing or restarting (mainline also fetches upstream)")
+	command.Flags().StringVar(&version, "version", "", "stock QIDI release from firmware releases (required for stock printers)")
+	command.Flags().StringVar(&firmwareDir, "firmware-dir", "", "use verified vendor payload files from this PC instead of downloading on the printer")
+	command.Flags().BoolVar(&hostOnly, "host-only", false, "update stock QIDI Linux firmware without flashing the touchscreen")
+	command.Flags().StringVar(&configPolicy, "config-policy", "preserve", "stock QIDI configuration policy: preserve existing files, or install vendor defaults")
 	command.Flags().DurationVar(&wait, "wait-timeout", 3*time.Minute, "maximum startup verification time (including host tuning)")
 	return command
 }

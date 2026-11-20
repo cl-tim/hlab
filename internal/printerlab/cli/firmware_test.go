@@ -233,7 +233,7 @@ func TestFirmwareHelpShowsPublicWorkflowOperations(t *testing.T) {
 			names = append(names, cmd.Name())
 		}
 	}
-	if !reflect.DeepEqual(names, []string{"advanced", "migrate", "prepare", "status", "update", "write-emmc"}) {
+	if !reflect.DeepEqual(names, []string{"advanced", "migrate", "prepare", "releases", "status", "update", "write-emmc"}) {
 		t.Fatalf("public commands: %v", names)
 	}
 	legacy, _, err := root.Find([]string{"mainline", "build"})

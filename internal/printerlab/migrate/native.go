@@ -69,13 +69,13 @@ func (b *nativeBackend) execute(args []string) error {
 	defaults := map[string]string{"user": "mks", "port": "22", "profile": "mainline-klipper-beacon", "klipper-ref": KlipperRef, "moonraker-ref": MoonrakerRef, "katapult-ref": KatapultRef, "minimum-kernel": "6.18.54", "service": "klipper.service", "klipper-dir": "/home/mks/klipper", "printer-data": "/home/mks/printer_data", "scripts-dir": "/home/mks/scripts/plr", "remote-python": "/home/mks/klippy-env/bin/python", "remote-directory": "/home/mks/qidi-mainline-migration", "katapult-directory": "/home/mks/katapult", "new-user": "plab"}
 	fs := flag.NewFlagSet(b.stage, flag.ContinueOnError)
 	fs.SetOutput(b.errOut)
-	names := strings.Fields("printer user printer-user port identity password-env klipper-dir katapult-dir output klipper-ref moonraker-ref katapult-ref beacon-ref wsl-distro url minimum-kernel data-dir facts-file name artifacts confirm printer-data scripts-dir remote-python service rollback-manifest backup-manifest profile profile-dir beacon-serial image remote-directory backup-output katapult-directory new-user pubkey device plan moonraker-port wait-seconds api-key-env")
+	names := strings.Fields("printer user printer-user port identity password-env klipper-dir katapult-dir output klipper-ref moonraker-ref katapult-ref beacon-ref wsl-distro url minimum-kernel data-dir facts-file name artifacts confirm printer-data scripts-dir remote-python service rollback-manifest backup-manifest profile profile-dir beacon-serial image remote-directory backup-output katapult-directory new-user pubkey device plan moonraker-port wait-seconds api-key-env model firmware-version config-policy firmware-dir")
 	pointers := map[string]*string{}
 	for _, name := range names {
 		pointers[name] = fs.String(name, defaults[name], "")
 	}
 	bools := map[string]*bool{}
-	for _, name := range strings.Fields("list-only json include-facts include-gcodes include-logs include-environments commissioning force generate reuse check") {
+	for _, name := range strings.Fields("list-only json include-facts include-gcodes include-logs include-environments commissioning force generate reuse check host-only") {
 		bools[name] = fs.Bool(name, false, "")
 	}
 	var ids repeatedStrings
@@ -172,6 +172,8 @@ func (b *nativeBackend) execute(args []string) error {
 		return b.upgradeAgent()
 	case "update-klipper":
 		return b.updateKlipper()
+	case "update-qidi":
+		return b.updateQIDI()
 	default:
 		return fmt.Errorf("unknown migration stage %q", b.stage)
 	}

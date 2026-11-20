@@ -90,7 +90,7 @@ func TestFirmwareUpdateRejectsMissingApprovalStockAndInvalidTimeoutBeforeSSH(t *
 		want           string
 	}{
 		{"approval", "mainline", nil, "-y/--yes"},
-		{"stock", "stock", []string{"-y"}, "declared mainline"},
+		{"stock", "stock", []string{"-y"}, "--version"},
 		{"timeout", "mainline", []string{"-y", "--wait-timeout", "1s"}, "whole number"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

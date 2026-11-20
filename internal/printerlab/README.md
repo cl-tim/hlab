@@ -4,8 +4,10 @@
 status and health audits, a record of each printer's parts, Klippee
 configuration workspaces, and QIDI Plus4 firmware migration and updates.
 
-Any Moonraker printer can be inventoried and monitored. Only the QIDI Plus4 has
-a reviewed flashing backend; `hlab printer firmware` refuses other models.
+Any Moonraker printer can be inventoried and monitored. Stock QIDI upgrades use
+an embedded catalogue of reviewed model/release profiles. The initial profile
+is Plus4 1.8.2 → 2.1.1; unreviewed models/releases are refused. Mainline flashing
+currently supports the Plus4.
 
 The printer commands ship in the same binary as the rest of hlab — see the
 [install instructions](../../README.md#install). Every command has `--help`.
@@ -308,6 +310,98 @@ command still exits with failure and reports whether recovery worked.
 It updates the Klipper host only. It does not flash controllers, update
 Moonraker or extensions, or touch `SAVE_CONFIG`.
 
+### Updating stock QIDI firmware
+
+```powershell
+hlab printer firmware releases                       # works without an inventory
+hlab printer firmware releases plus4 -o json          # versions, URLs and pinned SHA-256 values
+hlab printer firmware update printer-a --version 2.1.1 --check
+hlab printer firmware update printer-a --version 2.1.1 -y
+hlab printer firmware update printer-a --version 2.1.1 --firmware-dir ./downloads -y
+```
+
+The inventory must declare `firmware: stock` and the matching model. SSH key
+access, noninteractive root sudo, ready/idle Klipper, every heater target at
+zero, and at least 1 GiB free disk are required. This is independent of Klippee:
+an ordinary QIDI installation does not need a Klippee account or workspace.
+If a Klippee agent is installed, it must prove no operation is running; hlab
+stops it during installation and restores it afterwards.
+
+`--check` reads live prerequisites without downloading/installing firmware or
+restarting services. If the active vendor UI owns the touchscreen port, its
+identification check is deferred until the approved installation pauses that
+service. A failed check before invoking the installer restores service state.
+
+The default updates **both the Linux firmware and stock touchscreen**. It
+does not directly flash the mainboard, toolhead or Box MCU. QIDI's normal Box
+firmware detection resumes with Klipper. `--host-only` explicitly leaves the
+physical touchscreen unchanged. A connected touchscreen must identify before
+any firmware is installed, and acknowledge every block of its transfer.
+The final acknowledgement proves delivery, rather than a visual inspection of
+the panel. Screen power/cable faults stop the operation; there is no automatic
+fallback to a Linux-only update.
+
+`--config-policy preserve` is the default: restore existing configuration,
+calibration, saved variables, Box templates and installed PLR script before
+restarting services, then verify their original contents and metadata. This
+also preserves customized machines. `--config-policy vendor` explicitly accepts
+the release's configuration defaults; recalibration may be necessary. Files
+not supplied by the update remain in place under either policy. New vendor
+files such as material profiles are retained. Existing local Python extensions
+outside the vendor replacement paths remain installed. A successful startup
+does not certify every custom macro's runtime compatibility with new APIs.
+
+Before installation, hlab downloads the exact reviewed payloads over HTTPS,
+checks their lengths and SHA-256 hashes, and checks the embedded version and
+package identity. QIDI's Debian package version is not the firmware version.
+Moving OTA URLs are never treated as `latest`: if their contents change, the
+update refuses installation until a new release profile is reviewed.
+
+For a printer without internet access, download the exact catalogue payloads
+on your PC and pass `--firmware-dir DIRECTORY`. Keep their vendor filenames
+(for Plus4: `QD_Plus4_SOC` and `QD_Plus4_UI`). hlab verifies both files locally,
+transfers them over SSH, verifies the staged bytes on the printer and verifies
+them again when preparing the transaction. No printer-side network access is
+needed in this mode. `--check --firmware-dir DIRECTORY` also validates the local
+files without transferring or installing them.
+
+Recovery data is created on the printer under
+`/var/lib/hlab/qidi-updates/<transaction>/`. A recovery archive containing the
+previous configuration, files overwritten/removed by the installer, dpkg
+metadata and a manifest is then transferred to
+`%AppData%\plab\backups\qidi-firmware\<transaction>\recovery.tar.gz`
+(`PLAB_HOME` relocates this). Its hash must match on both machines **before**
+installation can start. These archives can include private configuration;
+retain them as recovery assets. Preparation expires after one hour, and changed
+configuration requires a new backup.
+
+The vendor installer is prevented from starting Klipper or the screen service
+while defaults are temporarily in place. Persistent systemd conditions also
+protect an unexpected reboot during installation. Prior service enablement and
+active state are restored after installation; an intentionally disabled vendor
+screen controller stays disabled. Startup verification requires ready/idle
+Klipper, every previously configured controller and Beacon (if present), the
+target firmware version and the selected configuration policy.
+
+**A failed/interrupted installation is never automatically retried or rolled
+back.** The result reports `recovery_required`, the recovery archive location
+and the error. Preserve the transaction's `manifest.json` and `install.log`.
+Service inhibition is recorded in
+`/etc/systemd/system/<service>.d/90-hlab-qidi-update.conf`; do not remove it or
+restart the printer until the failed firmware/configuration has been reviewed.
+The desktop archive includes `files-before.tar.gz`, `config.tar.gz` and the
+original manifest. Restore only the affected vendor files/configuration after
+review; the dpkg metadata is recovery evidence, not an instruction to replace
+the entire live package database. Interrupted screen flashing can require
+physical recovery using QIDI's update procedure.
+
+Adding support for another QIDI model or release means reviewing its official
+payloads, installer effects, device identity, version rules, preservation paths
+and touchscreen transport, then adding a profile to
+`migration/tools/migration/qidi-releases.json` and the corresponding tests.
+An arbitrary URL or matching firmware version alone is insufficient evidence
+that a package fits a different QIDI model.
+
 ## Safety model
 
 - Fleet reads run concurrently; a mutation targets exactly one printer.
@@ -342,3 +436,10 @@ go test ./...
 
 Optional tests for the Python assets that run on the printer are described in
 [migration/README.md](migration/README.md).
+
+The stock-QIDI updater also has dependency-free Linux fixtures (run through
+WSL on Windows); CI runs these alongside the Go suite:
+
+```bash
+python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p test_qidi_updater.py -v
+```

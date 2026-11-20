@@ -286,12 +286,15 @@ endpoints:
 
 `hlab printer` covers Moonraker discovery, status, job history, Spoolman status,
 component maintenance, and Klippee workspaces for Klipper printers, including
-Voron and QIDI. The firmware commands support the QIDI Plus4.
+Voron and QIDI. Firmware commands include stock-QIDI upgrades using reviewed
+release profiles (initially Plus4 1.8.2 → 2.1.1) and Plus4 mainline migration.
 
 ```bash
 hlab printer discover scan --emit    # prints a printerlab: section
 hlab printer printers
 hlab printer status
+hlab printer firmware releases
+hlab printer firmware update printer-a --version 2.1.1 --check
 ```
 
 Printers are kept in the same `config.yaml`, under `printerlab:`, with their
