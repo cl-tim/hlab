@@ -24,6 +24,8 @@ func TestBundleExtractsRequiredRuntimeWithoutCompanionCheckouts(t *testing.T) {
 		"mainline-configs/mainline-klipper-beacon/printer.cfg",
 		"mainline-configs/mainline-klipper-beacon/profile.json",
 		"plr-hardening/install.py", "plr-hardening/manifest.json",
+		"qidi-fixes/usb_events.py",
+		"qidi-fixes/box_drying.py",
 		"LICENSE.firmware", "LICENSE.configs",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(name))); err != nil {
@@ -54,6 +56,33 @@ func TestBundleRefusesChangedCachedCode(t *testing.T) {
 	got, _ := os.ReadFile(path)
 	if string(got) != "changed code" {
 		t.Fatal("validation silently overwrote the changed cache")
+	}
+}
+
+func TestBundledMainlineTiltAndMeshSpeeds(t *testing.T) {
+	data, err := files.ReadFile("mainline-configs/mainline-klipper-beacon/hardware.cfg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := strings.ReplaceAll(string(data), "\r", "")
+	for _, section := range []string{"z_tilt", "bed_mesh"} {
+		parts := strings.SplitN(text, "["+section+"]\n", 2)
+		if len(parts) != 2 {
+			t.Fatalf("missing %s section", section)
+		}
+		body := strings.SplitN(parts[1], "\n[", 2)[0]
+		found := false
+		for _, line := range strings.Split(body, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "speed:") {
+				found = true
+				if strings.TrimSpace(strings.SplitN(line, ":", 2)[1]) != "300" {
+					t.Errorf("bundled %s speed is not 300 mm/s: %s", section, line)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("bundled %s has no explicit speed", section)
+		}
 	}
 }
 

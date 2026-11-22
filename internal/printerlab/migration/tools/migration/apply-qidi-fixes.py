@@ -21,6 +21,44 @@ import time
 
 TRANSACTIONS = Path('/var/lib/hlab/qidi-fixes')
 TIMER = 'qidi-journal-archive-cleanup.timer'
+USB_SOCKET = 'hlab-usb-events.socket'
+USB_SERVICE = 'hlab-usb-events.service'
+USB_SCRIPT = '/usr/local/lib/hlab/usb_events.py'
+USB_FILES = {
+    '/etc/udev/rules.d/99-hlab-usb-events.rules': '''# hlab: no device serial numbers; storage IO runs outside udev.
+ACTION=="add|remove", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", RUN+="/usr/bin/python3 -I /usr/local/lib/hlab/usb_events.py emit $env{ACTION} %k $env{PRODUCT}"
+''',
+    '/etc/systemd/system/hlab-usb-events.socket': '''[Unit]
+Description=hlab USB evidence queue
+
+[Socket]
+ListenDatagram=/run/hlab-usb-events.sock
+SocketMode=0600
+RemoveOnStop=true
+
+[Install]
+WantedBy=sockets.target
+''',
+    '/etc/systemd/system/hlab-usb-events.service': '''[Unit]
+Description=hlab persistent USB evidence
+Requires=hlab-usb-events.socket
+After=hlab-usb-events.socket
+
+[Service]
+Type=notify
+TimeoutStartSec=10
+ExecStart=/usr/bin/python3 -I /usr/local/lib/hlab/usb_events.py serve
+Restart=on-failure
+RestartSec=2
+StateDirectory=hlab-usb-events
+StateDirectoryMode=0755
+UMask=0022
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+''',
+}
 LOG_FILES = {
     '/etc/systemd/journald.conf.d/zz-qidi-log-limits.conf': '''[Journal]
 SystemMaxUse=16M
@@ -185,6 +223,51 @@ def polling(text):
     return text, count
 
 
+def trim_runout_waits(text):
+    """Recognize only the vendor loop inside PRINT_START, preserving other bytes."""
+    headers = list(HEADERS.finditer(text))
+    for index, header in enumerate(headers):
+        if header.group(1).strip() != 'gcode_macro PRINT_START':
+            continue
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+        body = text[header.end():end]
+        loop = re.compile(r'(?m)^(?P<indent>[ \t]*)\{% for i in range\(16\) %\}(?P<nl>\r?\n)'
+                          r'(?P<save>[ \t]+SAVE_VARIABLE VARIABLE=runout_\{i\} VALUE=0\r?\n)'
+                          r'(?P<dwell>[ \t]+G4 P100\r?\n)?'
+                          r'(?P=indent)\{% endfor %\}')
+        matches = list(loop.finditer(body))
+        # A second/modified runout loop is not an invitation to guess.
+        if len(matches) != 1 or len(re.findall(r'VARIABLE=runout_', body)) != 1:
+            return text, 'skipped: unrecognized PRINT_START runout loop'
+        match = matches[0]
+        if match.group('dwell') is None:
+            return text, 'unchanged'
+        start, stop = match.span('dwell')
+        return text[:header.end() + start] + text[header.end() + stop:], 'trimmed'
+    return text, 'skipped: PRINT_START not found'
+
+
+def fast_probing(text):
+    """Change reviewed tilt/mesh speeds only; keep geometry and macro tuning."""
+    headers = list(HEADERS.finditer(text))
+    recognized, notes = [], []
+    for index in reversed(range(len(headers))):
+        header = headers[index]
+        name = header.group(1).strip()
+        if name not in ('bed_mesh', 'z_tilt'):
+            continue
+        end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+        body = text[header.end():end]
+        speeds = list(re.finditer(r'(?m)^(?P<prefix>[ \t]*speed[ \t]*[:=][ \t]*)(?P<value>[0-9]+(?:\.[0-9]+)?)(?P<tail>[ \t]*(?:[#;][^\r\n]*)?)[\r]?$' , body))
+        if len(speeds) != 1 or float(speeds[0].group('value')) not in (150, 200, 300):
+            notes.append('Probing speed skipped: unrecognized ' + name + ' speed')
+            continue
+        recognized.append(name)
+        start, stop = speeds[0].span('value')
+        text = text[:header.end() + start] + '300' + text[header.end() + stop:]
+    return text, recognized, notes
+
+
 class Fixes:
     def __init__(self, options, updater):
         self.options, self.updater = options, updater
@@ -194,6 +277,10 @@ class Fixes:
         self.mutating = False
         self.result = dict(schema=1, ok=False, status='failed', model='plus4', version='',
                            check_only=options['check_only'], polling=options['polling'],
+                           trim_runout_waits=options.get('trim_runout_waits', False),
+                           usb_event_log=options.get('usb_event_log', False),
+                           fast_probing=options.get('fast_probing', False),
+                           box_drying=options.get('box_drying', False),
                            backup='', backup_sha256='', local_backup=options.get('local_backup', ''),
                            startup_verified=False, changes=[], notes=[], error='')
 
@@ -253,6 +340,20 @@ class Fixes:
             raise FixError('POWER_LOSS_RESUME must use the reviewed stock PLR wrapper')
         desired = {}
         sections = ['box_output_clock_guard']
+        drying_metadata = None
+        if self.options.get('box_drying'):
+            if not any(re.fullmatch(r'heater_generic heater_box[1-4]', name) for name in names):
+                raise FixError('Box drying requires an active QIDI Box heater')
+            scope = {'__name__': 'hlab_box_drying_policy'}
+            exec(compile(base64.b64decode(self.options['assets']['qidi-fixes/box_drying.py']), 'box_drying.py', 'exec'), scope)
+            metadata = self.updater.config / 'officiall_filas_list.cfg'
+            safe_path(metadata)
+            try:
+                scope['filament_limits'](str(metadata))
+            except Exception:
+                raise FixError('Box drying requires valid QIDI filament drying limits')
+            drying_metadata = digest(metadata.read_bytes())
+            sections.append('box_drying')
         if version == '1.8.2':
             sections.append('box_status_compat')
         else:
@@ -262,6 +363,33 @@ class Fixes:
             desired[str(target)] = base64.b64decode(self.options['assets']['qidi-fixes/' + section + '.py'])
             if section not in names:
                 files[root] = add_section(files[root], section)
+        runout = None
+        probe_sections = []
+        if self.options.get('fast_probing'):
+            for path in list(files):
+                files[path], recognized, notes = fast_probing(files[path])
+                probe_sections.extend(recognized)
+                self.result['notes'].extend(notes)
+            if not probe_sections:
+                self.result['notes'].append('Probing speed skipped: no reviewed tilt/mesh sections')
+        if self.options.get('trim_runout_waits'):
+            for path in list(files):
+                if 'gcode_macro PRINT_START' not in section_names({path: files[path]}):
+                    continue
+                files[path], state = trim_runout_waits(files[path])
+                self.result['notes'].append('Runout waits: ' + state)
+                if state in ('trimmed', 'unchanged'):
+                    runout = str(path)
+                break
+            else:
+                self.result['notes'].append('Runout waits skipped: PRINT_START not found')
+        usb = bool(self.options.get('usb_event_log'))
+        if usb:
+            desired.update((path, content.encode('utf-8')) for path, content in USB_FILES.items())
+            desired[USB_SCRIPT] = base64.b64decode(self.options['assets']['qidi-fixes/usb_events.py'])
+            for unit in (USB_SOCKET, USB_SERVICE):
+                if self.updater.enabled_state(unit) not in ('enabled', 'disabled', 'static', 'indirect', 'not-found', ''):
+                    raise FixError('Unsupported USB logger unit policy: ' + unit)
         if self.options['polling']:
             total = 0
             for path in list(files):
@@ -297,13 +425,17 @@ class Fixes:
         activate_logs = logs and (self.updater.enabled_state(TIMER) != 'enabled' or not self.timer_active())
         if activate_logs:
             changes.append('enable ' + TIMER)
+        if usb and (self.updater.enabled_state(USB_SOCKET) != 'enabled'
+                    or any(self.updater.service_state(unit) != 'active' for unit in (USB_SOCKET, USB_SERVICE))):
+            changes.append('activate ' + USB_SOCKET)
         objects = self.updater.api('/printer/objects/list').get('objects', [])
         if any(section not in objects for section in sections):
             changes.append('restart klipper.service to activate guard sections')
         self.result['changes'] = sorted(set(changes))
         return dict(version=version, before=before, writes=writes, plr_changed=plr['changed'],
                     plr_backup=plr.get('backup_manifest'), logs=logs, activate_logs=activate_logs,
-                    changed=bool(changes), controllers=self.updater.idle())
+                    usb=usb, runout=runout, probe_sections=sorted(probe_sections),
+                    drying_metadata=drying_metadata, changed=bool(changes), controllers=self.updater.idle())
 
     def save(self):
         atomic_write(self.tx / 'manifest.json', (json.dumps(self.manifest, sort_keys=True) + '\n').encode('utf-8'),
@@ -321,6 +453,14 @@ class Fixes:
                              timer_enabled=self.updater.enabled_state(TIMER),
                              timer_active=self.timer_active(),
                              agent_active=self.updater.agent_active(), polling=self.options['polling'])
+        self.manifest['trim_runout_waits'] = self.options.get('trim_runout_waits', False)
+        self.manifest['usb_event_log'] = self.options.get('usb_event_log', False)
+        self.manifest['fast_probing'] = self.options.get('fast_probing', False)
+        self.manifest['box_drying'] = self.options.get('box_drying', False)
+        if plan.get('usb'):
+            self.manifest['usb_before'] = dict((unit, dict(enabled=self.updater.enabled_state(unit),
+                                                          active=self.updater.service_state(unit) == 'active'))
+                                               for unit in (USB_SOCKET, USB_SERVICE))
         self.save()
         with tarfile.open(str(self.tx / 'recovery.tar.gz'), 'w:gz') as archive:
             archive.add(str(self.tx / 'manifest.json'), arcname='manifest.json')
@@ -385,6 +525,22 @@ class Fixes:
                     if not status.get(name, {}).get('last_received_sample' if name == 'beacon' else 'mcu_version'):
                         raise FixError('Controller did not return: ' + name)
                 if guards:
+                    if plan.get('probe_sections'):
+                        settings = self.updater.api('/printer/objects/query?configfile')['status']['configfile']['settings']
+                        if any(float(settings.get(name, {}).get('speed', 0)) != 300 for name in plan['probe_sections']):
+                            raise FixError('Loaded tilt/mesh speed is not 300 mm/s')
+                    if plan.get('drying_metadata'):
+                        drying = self.updater.api('/printer/objects/query?box_drying')['status'].get('box_drying', {})
+                        if drying.get('active_boxes') != [] or drying.get('boxes') != {}:
+                            raise FixError('Box drying did not load in the inactive state')
+                    if plan.get('runout'):
+                        loaded = self.updater.api('/printer/objects/query?configfile')['status']['configfile']['config']
+                        macro = loaded.get('gcode_macro PRINT_START', {}).get('gcode', '')
+                        _, state = trim_runout_waits('[gcode_macro PRINT_START]\ngcode:\n' + macro + '\n')
+                        if state != 'unchanged':
+                            raise FixError('Loaded PRINT_START did not prove the trimmed runout loop')
+                    if plan.get('usb') and any(self.updater.service_state(unit) != 'active' for unit in (USB_SOCKET, USB_SERVICE)):
+                        raise FixError('USB evidence services did not activate')
                     guard = status.get('box_output_clock_guard', {})
                     if any(name.startswith('mcu mcu_box') for name in plan['controllers']):
                         outputs = guard.get('outputs', {})
@@ -418,11 +574,18 @@ class Fixes:
             self.updater_command(['systemctl', 'enable', '--now', TIMER])
             if self.updater.service_state(TIMER) != 'active' or self.updater.service_state('systemd-journald') != 'active':
                 raise FixError('Journal services did not activate')
+        if plan.get('usb'):
+            self.updater_command(['systemctl', 'daemon-reload'])
+            self.updater_command(['udevadm', 'control', '--reload-rules'])
+            self.updater_command(['systemctl', 'enable', '--now', USB_SOCKET])
+            self.updater_command(['systemctl', 'start', USB_SERVICE])
 
     def apply(self):
         plan = self.load(self.options['backup'])
         if self.manifest['status'] != 'prepared' or self.manifest['polling'] != self.options['polling'] or self.result['backup_sha256'] != self.options['backup_sha256']:
             raise FixError('Apply does not match the desktop-verified recovery transaction')
+        if any(self.manifest.get(key, False) != self.options.get(key, False) for key in ('trim_runout_waits', 'usb_event_log', 'fast_probing', 'box_drying')):
+            raise FixError('Apply options differ from prepared maintenance transaction')
         if self.plan() != plan:
             raise FixError('Printer files or state changed after preparation; start a new check')
         self.manifest['status'] = 'applying'
@@ -431,6 +594,10 @@ class Fixes:
         self.stop()
         if dict((path, snapshot(path)) for path in plan['before']) != plan['before']:
             raise FixError('Configuration changed while stopping; rollback required')
+        if plan.get('usb'):
+            for unit in (USB_SOCKET, USB_SERVICE):
+                if self.updater.service_state(unit) in ('active', 'activating', 'reloading', 'deactivating'):
+                    self.updater_command(['systemctl', 'stop', unit])
         if plan['plr_changed']:
             applied = self.plr(apply=True)
             if applied.get('backup_manifest') != plan['plr_backup'] or self.plr()['changed']:
@@ -477,6 +644,12 @@ class Fixes:
         if plan['logs']:
             # Disable while the installed unit still exists on disk.
             self.updater_command(['systemctl', 'disable', '--now', TIMER])
+        if plan.get('usb'):
+            if self.updater.enabled_state(USB_SOCKET) == 'enabled':
+                self.updater_command(['systemctl', 'disable', '--now', USB_SOCKET])
+            for unit in (USB_SOCKET, USB_SERVICE):
+                if self.updater.service_state(unit) in ('active', 'activating', 'reloading', 'deactivating'):
+                    self.updater_command(['systemctl', 'stop', unit])
         for path, metadata in plan['before'].items():
             target = safe_path(path)
             if metadata is None:
@@ -491,6 +664,14 @@ class Fixes:
                 self.updater_command(['systemctl', 'enable', TIMER])
             if self.manifest['timer_active']:
                 self.updater_command(['systemctl', 'start', TIMER])
+        if plan.get('usb'):
+            self.updater_command(['systemctl', 'daemon-reload'])
+            self.updater_command(['udevadm', 'control', '--reload-rules'])
+            for unit, state in self.manifest['usb_before'].items():
+                if state['enabled'] == 'enabled':
+                    self.updater_command(['systemctl', 'enable', unit])
+                if state['active']:
+                    self.updater_command(['systemctl', 'start', unit])
         self.updater_command(['systemctl', 'start', 'klipper.service'])
         self.verify(plan, guards=False)
         if self.manifest['agent_active']:

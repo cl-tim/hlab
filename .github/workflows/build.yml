@@ -28,7 +28,10 @@ jobs:
       # lacks, so this is the only place it runs.
       - name: Test
         run: go test -race ./...
-      - name: Stock QIDI updater fixtures
-        run: python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_qidi_*.py' -v
+      - name: Plus4 updater and controller fixtures
+        run: |
+          python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_qidi_*.py' -v
+          python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_box_drying.py' -v
+          python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_usb_events.py' -v
       - name: Cross-compile
         run: make release

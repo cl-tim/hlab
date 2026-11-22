@@ -21,9 +21,40 @@ use_irq: True
 debounce_us: 50
 pause_on_runout: True
 '''
+START = '''[gcode_macro PRINT_START]
+gcode:
+    TOOL_CHANGE_END
+    {% if printer.save_variables.variables.box_count >= 1 %}
+        {% for i in range(16) %}
+            SAVE_VARIABLE VARIABLE=runout_{i} VALUE=0
+            G4 P100
+        {% endfor %}
+    {% endif %}
+    G4 P5000
+
+[gcode_macro KEEP]
+gcode: G4 P100
+'''
 
 
 class FixesTests(unittest.TestCase):
+    def test_runout_edit_is_narrow_idempotent_and_preserves_line_endings(self):
+        for newline in ('\n', '\r\n'):
+            source = START.replace('\n', newline)
+            trimmed, state = fixes.trim_runout_waits(source)
+            self.assertEqual(state, 'trimmed')
+            self.assertEqual(trimmed, source.replace('            G4 P100' + newline, '', 1))
+            self.assertEqual(fixes.trim_runout_waits(trimmed), (trimmed, 'unchanged'))
+        for source in (START.replace('range(16)', 'range(8)'), START.replace('VALUE=0', 'VALUE=1'),
+                       START.replace('G4 P100\n        {% endfor', 'G4 P200\n        {% endfor'),
+                       START + START, START.replace('PRINT_START', 'OTHER_START')):
+            # Duplicated sections are rejected by the include-graph gate, not guessed here.
+            if source == START + START:
+                with self.assertRaises(fixes.FixError):
+                    fixes.section_names({Path('fixture'): source})
+                continue
+            self.assertEqual(fixes.trim_runout_waits(source)[0], source)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -48,7 +79,7 @@ timeout: 120
         self.updater.api.return_value = dict(objects=['box_output_clock_guard', 'box_status_compat'])
         asset_root = HELPER.parents[2]
         assets = dict((name, base64.b64encode((asset_root / name).read_bytes()).decode('ascii'))
-                      for name in ('qidi-fixes/box_output_clock_guard.py', 'qidi-fixes/box_status_compat.py'))
+                      for name in ('qidi-fixes/box_output_clock_guard.py', 'qidi-fixes/box_status_compat.py', 'qidi-fixes/box_drying.py'))
         self.options = dict(check_only=False, polling=False, assets=assets, transaction_id='a' * 32,
                             wait_seconds=5, phase='prepare')
         self.fix = fixes.Fixes(self.options, self.updater)
@@ -94,6 +125,151 @@ timeout: 120
             self.assertNotIn('debounce_us', data)
             self.assertIn('pause_on_runout: True', data)
             self.assertEqual(fixes.polling(data)[0], data)
+
+    def test_fast_probing_preserves_other_settings_and_skips_unknown_speeds(self):
+        source = '[z_tilt]\nspeed: 200 # travel\nretry_tolerance: 0.006\n[bed_mesh]\nspeed:150\nprobe_count:14,14\n[gcode_macro KEEP]\ngcode: M204 S1000\n'
+        for newline in ('\n', '\r\n'):
+            text = source.replace('\n', newline)
+            edited, sections, notes = fixes.fast_probing(text)
+            self.assertEqual(edited, text.replace('200 # travel', '300 # travel').replace('speed:150', 'speed:300'))
+            self.assertEqual(set(sections), {'z_tilt', 'bed_mesh'})
+            self.assertFalse(notes)
+            self.assertEqual(fixes.fast_probing(edited)[0], edited)
+        unknown = source.replace('speed: 200', 'speed: 350')
+        edited, sections, notes = fixes.fast_probing(unknown)
+        self.assertIn('speed: 350', edited)
+        self.assertEqual(sections, ['bed_mesh'])
+        self.assertTrue(notes)
+
+    def test_speed_and_drying_options_plan_apply_and_rollback(self):
+        macros = self.config / 'macros.cfg'
+        macros.write_text(macros.read_text() + '\n[z_tilt]\nspeed:200\n[bed_mesh]\nspeed:150\n')
+        (self.config / 'box.cfg').write_text(SENSOR + '\n[heater_generic heater_box1]\nheater_pin: mcu_box1:PA3\n')
+        policy = self.config / 'officiall_filas_list.cfg'
+        policy.write_text('[fila1]\nbox_max_temp=0\n[fila18]\nbox_max_temp=45\n')
+        self.updater.api.return_value = dict(objects=['box_output_clock_guard', 'box_status_compat', 'box_drying'])
+        self.fix.options.update(fast_probing=True, box_drying=True)
+        original = macros.read_bytes()
+        plan = self.prepare()
+        self.assertEqual(plan['probe_sections'], ['bed_mesh', 'z_tilt'])
+        self.assertEqual(plan['drying_metadata'], fixes.digest(policy.read_bytes()))
+        self.fix.apply()
+        self.assertIn('[box_drying]', self.printer.read_text())
+        self.assertIn('speed:300', macros.read_text())
+        self.assertTrue((self.home / 'klipper/klippy/extras/box_drying.py').is_file())
+        self.assertFalse(self.fix.plan()['changed'])
+        self.fix.options['rollback'] = str(self.fix.tx)
+        self.fix.rollback()
+        self.assertEqual(macros.read_bytes(), original)
+        self.assertNotIn('[box_drying]', self.printer.read_text())
+        self.assertFalse((self.home / 'klipper/klippy/extras/box_drying.py').exists())
+        self.assertTrue(policy.is_file())
+
+    def test_box_drying_refuses_missing_box_and_invalid_policy_before_writes(self):
+        self.fix.options['box_drying'] = True
+        with self.assertRaisesRegex(fixes.FixError, 'active QIDI Box heater'):
+            self.fix.plan()
+        (self.config / 'box.cfg').write_text(SENSOR + '\n[heater_generic heater_box1]\n')
+        with self.assertRaisesRegex(fixes.FixError, 'valid QIDI filament'):
+            self.fix.plan()
+        (self.config / 'officiall_filas_list.cfg').write_text('[fila1]\nbox_max_temp=nan\n')
+        with self.assertRaisesRegex(fixes.FixError, 'valid QIDI filament'):
+            self.fix.plan()
+        self.fix.plr.assert_not_called()
+
+    def test_loaded_probe_speed_is_verified(self):
+        self.fix.result['version'] = '2.1.1'
+        for speed in (150, 300):
+            self.fix.result['startup_verified'] = False
+            self.updater.api.side_effect = [
+                {'status': {'box_output_clock_guard': {'state': 'inactive-no-box'}}},
+                {'status': {'configfile': {'settings': {'bed_mesh': {'speed': speed}}}}},
+            ]
+            with patch.object(fixes.time, 'monotonic', side_effect=[0, 0, 6]), patch.object(fixes.time, 'sleep'):
+                if speed == 300:
+                    self.fix.verify(dict(controllers=[], probe_sections=['bed_mesh']))
+                else:
+                    with self.assertRaises(fixes.FixError):
+                        self.fix.verify(dict(controllers=[], probe_sections=['bed_mesh']))
+            self.assertEqual(self.fix.result['startup_verified'], speed == 300)
+
+    def test_runout_option_resolves_include_and_preserves_other_macros(self):
+        macros = self.config / 'macros.cfg'
+        macros.write_text(macros.read_text() + START)
+        for version in ('1.8.2', '2.1.1'):
+            self.updater.version.return_value = version
+            self.assertNotIn(str(macros), self.fix.plan()['writes'])
+            self.fix.options['trim_runout_waits'] = True
+            plan = self.fix.plan()
+            self.assertEqual(plan['runout'], str(macros))
+            edited = base64.b64decode(plan['writes'][str(macros)]).decode()
+            self.assertIn('SAVE_VARIABLE VARIABLE=runout_{i} VALUE=0', edited)
+            self.assertIn('gcode: G4 P100', edited)
+            self.fix.options['trim_runout_waits'] = False
+
+    def test_runout_apply_rollback_and_option_binding(self):
+        macros = self.config / 'macros.cfg'
+        macros.write_text(macros.read_text() + START)
+        original = macros.read_bytes()
+        self.fix.options['trim_runout_waits'] = True
+        self.prepare()
+        self.fix.options['trim_runout_waits'] = False
+        with self.assertRaisesRegex(fixes.FixError, 'options differ'):
+            self.fix.apply()
+        self.fix.options['trim_runout_waits'] = True
+        self.fix.apply()
+        self.assertEqual(fixes.trim_runout_waits(macros.read_text())[1], 'unchanged')
+        self.fix.options['rollback'] = str(self.fix.tx)
+        self.fix.rollback()
+        self.assertEqual(macros.read_bytes(), original)
+
+    def test_startup_verifies_effective_runout_macro_not_only_files(self):
+        for applied in (False, True):
+            source = fixes.trim_runout_waits(START)[0] if applied else START
+            body = source.split('gcode:\n', 1)[1].split('[gcode_macro KEEP]', 1)[0]
+            self.fix.result['startup_verified'] = False
+            self.fix.result['version'] = '2.1.1'
+            self.updater.api.side_effect = [
+                {'status': {'box_output_clock_guard': {'state': 'inactive-no-box'}}},
+                {'status': {'configfile': {'config': {'gcode_macro PRINT_START': {'gcode': body}}}}},
+            ]
+            with patch.object(fixes.time, 'monotonic', side_effect=[0, 0, 6]), patch.object(fixes.time, 'sleep'):
+                if applied:
+                    self.fix.verify(dict(controllers=[], runout='macros.cfg'))
+                else:
+                    with self.assertRaisesRegex(fixes.FixError, 'Startup verification timed out'):
+                        self.fix.verify(dict(controllers=[], runout='macros.cfg'))
+            self.assertEqual(self.fix.result['startup_verified'], applied)
+
+    def test_unknown_runout_loop_is_skipped_and_opt_in_still_reports_why(self):
+        macros = self.config / 'macros.cfg'
+        macros.write_text(macros.read_text() + START.replace('range(16)', 'range(8)'))
+        self.fix.options['trim_runout_waits'] = True
+        plan = self.fix.plan()
+        self.assertIsNone(plan['runout'])
+        self.assertNotIn(str(macros), plan['writes'])
+        self.assertTrue(any('unrecognized PRINT_START' in note for note in self.fix.result['notes']))
+
+    def test_usb_files_are_optional_and_rollback_restores_service_policy(self):
+        self.fix.options['assets']['qidi-fixes/usb_events.py'] = base64.b64encode(b'# fixture writer\n').decode()
+        assets = {str(self.root / Path(path).name): content for path, content in fixes.USB_FILES.items()}
+        script = str(self.root / 'usb_events.py')
+        with patch.object(fixes, 'USB_FILES', assets), patch.object(fixes, 'USB_SCRIPT', script):
+            self.assertNotIn(script, self.fix.plan()['writes'])
+            self.fix.options['usb_event_log'] = True
+            self.updater.enabled_state.return_value = 'disabled'
+            plan = self.prepare()
+            self.assertTrue(plan['usb'])
+            self.assertIn(script, plan['writes'])
+            self.fix.apply()
+            self.assertEqual(Path(script).read_bytes(), b'# fixture writer\n')
+            self.fix.options['rollback'] = str(self.fix.tx)
+            self.fix.rollback()
+            self.assertFalse(Path(script).exists())
+            self.fix.updater_command.assert_any_call(['udevadm', 'control', '--reload-rules'])
+            self.fix.updater_command.assert_any_call(['systemctl', 'start', fixes.USB_SOCKET])
+            self.assertFalse(any(call.args[0] == ['systemctl', 'enable', fixes.USB_SOCKET]
+                                 for call in self.fix.updater_command.call_args_list))
 
     def test_polling_refuses_unknown_pins_and_missing_active_sensors(self):
         with self.assertRaises(fixes.FixError):

@@ -25,6 +25,10 @@ type QIDIFixesResult struct {
 	Version         string   `json:"version" yaml:"version"`
 	CheckOnly       bool     `json:"check_only" yaml:"check_only"`
 	Polling         bool     `json:"polling" yaml:"polling"`
+	TrimRunoutWaits bool     `json:"trim_runout_waits" yaml:"trim_runout_waits"`
+	USBEventLog     bool     `json:"usb_event_log" yaml:"usb_event_log"`
+	FastProbing     bool     `json:"fast_probing" yaml:"fast_probing"`
+	BoxDrying       bool     `json:"box_drying" yaml:"box_drying"`
 	Backup          string   `json:"backup" yaml:"backup"`
 	BackupSHA256    string   `json:"backup_sha256" yaml:"backup_sha256"`
 	LocalBackup     string   `json:"local_backup" yaml:"local_backup"`
@@ -42,7 +46,7 @@ func ParseQIDIFixes(raw []byte) (QIDIFixesResult, error) {
 	if err := rejectDuplicateJSONFields(raw); err != nil {
 		return result, err
 	}
-	if _, err := exactUpgradeObject(raw, "QIDI fixes", strings.Fields("schema ok status model version check_only polling backup backup_sha256 local_backup startup_verified changes notes error"), nil); err != nil {
+	if _, err := exactUpgradeObject(raw, "QIDI fixes", strings.Fields("schema ok status model version check_only polling trim_runout_waits usb_event_log fast_probing box_drying backup backup_sha256 local_backup startup_verified changes notes error"), nil); err != nil {
 		return result, err
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -105,8 +109,8 @@ func (b *nativeBackend) qidiFixes() error {
 		return fmt.Errorf("fixes require the stock Plus4 mks layout")
 	}
 	rollback := b.value("rollback-manifest")
-	if rollback != "" && (check || b.switches["box-motion-polling"] || !fixesTransaction.MatchString(rollback)) {
-		return fmt.Errorf("--rollback requires an exact fixes transaction and cannot be combined with --check or --box-motion-polling")
+	if rollback != "" && (check || b.switches["box-motion-polling"] || b.switches["trim-runout-waits"] || b.switches["usb-event-log"] || b.switches["fast-probing"] || b.switches["box-drying"] || !fixesTransaction.MatchString(rollback)) {
+		return fmt.Errorf("--rollback requires an exact fixes transaction and cannot be combined with --check or fix options")
 	}
 	port, err := strconv.Atoi(b.value("moonraker-port"))
 	if err != nil || port < 1 || port > 65535 {
@@ -127,7 +131,7 @@ func (b *nativeBackend) qidiFixes() error {
 	if err != nil {
 		return err
 	}
-	names := []string{"tools/migration/update-qidi.py", "qidi-fixes/box_output_clock_guard.py", "qidi-fixes/box_status_compat.py"}
+	names := []string{"tools/migration/update-qidi.py", "qidi-fixes/box_output_clock_guard.py", "qidi-fixes/box_status_compat.py", "qidi-fixes/usb_events.py", "qidi-fixes/box_drying.py"}
 	for _, name := range plrAssets {
 		names = append(names, "plr-hardening/"+name)
 	}
@@ -145,6 +149,8 @@ func (b *nativeBackend) qidiFixes() error {
 	}
 	options := map[string]any{"release": release, "assets": assets, "transaction_id": randomToken() + randomToken(), "check_only": check,
 		"polling": b.switches["box-motion-polling"], "rollback": rollback, "moonraker_port": port, "wait_seconds": wait,
+		"trim_runout_waits": b.switches["trim-runout-waits"], "usb_event_log": b.switches["usb-event-log"],
+		"fast_probing": b.switches["fast-probing"], "box_drying": b.switches["box-drying"],
 		"api_key": key, "phase": "prepare", "backup": "", "backup_sha256": "", "local_backup": ""}
 	// The combined token is 16 random bytes encoded as 32 hex characters, shared
 	// by the root-owned transaction and PLR manifest throughout prepare and apply.
@@ -157,7 +163,9 @@ func (b *nativeBackend) qidiFixes() error {
 		if err != nil {
 			return result, fmt.Errorf("invalid fixes result: %w (%v)", err, runErr)
 		}
-		if result.CheckOnly != check || result.Polling != b.switches["box-motion-polling"] || (code == 0) != result.OK {
+		if result.CheckOnly != check || result.Polling != b.switches["box-motion-polling"] ||
+			result.TrimRunoutWaits != b.switches["trim-runout-waits"] || result.USBEventLog != b.switches["usb-event-log"] ||
+			result.FastProbing != b.switches["fast-probing"] || result.BoxDrying != b.switches["box-drying"] || (code == 0) != result.OK {
 			return result, fmt.Errorf("fixes receipt contradicts mode or process exit")
 		}
 		if options["phase"] == "apply" && (result.Backup != options["backup"] || result.BackupSHA256 != options["backup_sha256"] || result.LocalBackup != options["local_backup"]) {

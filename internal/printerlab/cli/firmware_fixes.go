@@ -13,7 +13,7 @@ import (
 
 func newFirmwareFixesCmd(a *app) *cobra.Command {
 	var target firmwareUpdateTarget
-	var check, polling bool
+	var check, polling, trimRunout, usbLog, fastProbing, boxDrying bool
 	var rollback string
 	var wait time.Duration
 	cmd := &cobra.Command{
@@ -23,6 +23,10 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 			"--box-motion-polling optionally mitigates the Box IRQ watchdog defect in active\n" +
 			"configuration and stock templates. The clock guard disables automatic RFID insertion\n" +
 			"unless qidi_box_auto_insert=1 is explicitly set; manual loading is retained.\n" +
+			"--trim-runout-waits removes the recognized PRINT_START runout delays;\n" +
+			"--usb-event-log installs bounded persistent USB evidence without serial numbers.\n" +
+			"--fast-probing sets reviewed tilt/mesh speeds to 300 mm/s, including Beacon scans;\n" +
+			"--box-drying installs timed Box drying with live filament-limit checks.\n" +
 			"Use --target HOST without enrollment or a configuration inventory. Existing SSH\n" +
 			"and passwordless sudo are required; no Klippee agent is required.\n" +
 			"Check mode changes no configuration or service. Apply requires idle/heaters off,\n" +
@@ -48,8 +52,8 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 					return err
 				}
 			}
-			if rollback != "" && (check || polling) {
-				return fmt.Errorf("--rollback cannot be combined with --check or --box-motion-polling")
+			if rollback != "" && (check || polling || trimRunout || usbLog || fastProbing || boxDrying) {
+				return fmt.Errorf("--rollback cannot be combined with --check or fix options")
 			}
 			if wait < 5*time.Second || wait > 10*time.Minute || wait%time.Second != 0 {
 				return fmt.Errorf("--wait-timeout must be whole seconds from 5s to 10m")
@@ -75,6 +79,18 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 			if polling {
 				stage = append(stage, "--box-motion-polling")
 			}
+			if trimRunout {
+				stage = append(stage, "--trim-runout-waits")
+			}
+			if usbLog {
+				stage = append(stage, "--usb-event-log")
+			}
+			if fastProbing {
+				stage = append(stage, "--fast-probing")
+			}
+			if boxDrying {
+				stage = append(stage, "--box-drying")
+			}
 			if check {
 				stage = append(stage, "--check")
 			} else {
@@ -85,7 +101,8 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%s: invalid fixes result: %w (%v)", printer.Name, err, runErr)
 			}
-			if result.CheckOnly != check || result.Polling != polling {
+			if result.CheckOnly != check || result.Polling != polling || result.TrimRunoutWaits != trimRunout ||
+				result.USBEventLog != usbLog || result.FastProbing != fastProbing || result.BoxDrying != boxDrying {
 				return fmt.Errorf("fixes result does not match requested mode")
 			}
 			table := output.Table{Headers: []string{"PRINTER", "STATUS", "VERSION", "RECOVERY", "DETAIL"}}
@@ -111,6 +128,10 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 	target.addFlags(cmd)
 	cmd.Flags().BoolVar(&check, "check", false, "inspect compatibility and planned changes without editing configuration or restarting")
 	cmd.Flags().BoolVar(&polling, "box-motion-polling", false, "also switch active and template Box motion sensors from QIDI IRQ to polling")
+	cmd.Flags().BoolVar(&trimRunout, "trim-runout-waits", false, "remove only the recognized PRINT_START runout-flag waits")
+	cmd.Flags().BoolVar(&usbLog, "usb-event-log", false, "retain bounded USB events across reboots for Klippee diagnostics")
+	cmd.Flags().BoolVar(&fastProbing, "fast-probing", false, "set reviewed tilt/mesh travel and Beacon scan speeds to 300 mm/s")
+	cmd.Flags().BoolVar(&boxDrying, "box-drying", false, "install timed Box drying with live filament-limit checks")
 	cmd.Flags().StringVar(&rollback, "rollback", "", "exact recovery transaction path returned by fixes; refuses subsequent file changes")
 	cmd.Flags().DurationVar(&wait, "wait-timeout", 3*time.Minute, "maximum startup verification time")
 	return cmd

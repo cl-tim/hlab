@@ -17,6 +17,23 @@ attribution and review references, not installation dependencies.
 
 Runtime output paths and the default profile are adapted for Printerlab.
 
+The optional runout-delay trimming and persistent USB evidence added in
+November 2026 were independently implemented after reviewing
+[Plus4-Grease](https://github.com/JarvisAKF/Plus4-Grease/tree/abc21a33b73758d34573d5f80de6b436d3241564).
+No Grease implementation was copied. The USB sender/writer, transaction
+integration and tests are maintained here; they do not download or invoke that
+project. The service follows systemd's [socket activation protocol](https://www.freedesktop.org/software/systemd/man/sd_listen_fds.html)
+and [readiness notification](https://www.freedesktop.org/software/systemd/man/sd_notify.html).
+
+The later 300 mm/s tilt/mesh setting and `box_drying.py` were added after the
+same review. The drying controller is an independent implementation with
+per-Box monotonic deadlines and repeated filament-limit checks. It reads the
+installed QIDI `officiall_filas_list.cfg` rather than shipping a copied limit
+table. Offline parsing was checked against extracted 1.8.2 and 2.1.1 tables;
+unused rows with blank limits remain unsupported. The bundled mainline
+profile's two speed values were updated alongside the configuration repository;
+its original import commit above remains the baseline provenance.
+
 `qidi-fixes/box_output_clock_guard.py` and `box_status_compat.py` are copied
 without code changes from `qidi-plus4-firmware` commit
 `57a95ba0b7149018487984af83beb08f325891ac`, under its `qidibox-modules/` GPLv3

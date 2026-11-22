@@ -353,6 +353,11 @@ hlab printer firmware fixes --target printer.local -y
 # Optional watchdog containment, in both active configuration and Box templates:
 hlab printer firmware fixes --target printer.local --box-motion-polling --check
 hlab printer firmware fixes --target printer.local --box-motion-polling -y
+# Optional startup optimization and persistent USB evidence:
+hlab printer firmware fixes --target printer.local --trim-runout-waits --usb-event-log --check
+hlab printer firmware fixes --target printer.local --trim-runout-waits --usb-event-log -y
+hlab printer firmware fixes --target printer.local --fast-probing --box-drying --check
+hlab printer firmware fixes --target printer.local --fast-probing --box-drying -y
 ```
 
 | Fix | Stock 1.8.2 | Stock 2.1.1 |
@@ -362,6 +367,10 @@ hlab printer firmware fixes --target printer.local --box-motion-polling -y
 | Journal size/retention limits and archive cleanup timer | Apply to detected small Armbian ramlog layout | Same layout check; skip with a note on other layouts |
 | Box `is_tool_change` status shim | Install and activate | Preserve an existing shim; do not add one because continued need is unproven |
 | Box motion-sensor polling | Optional `--box-motion-polling` | Optional mitigation for the unchanged Box IRQ path; a watchdog failure was not reproduced on 2.1.1 |
+| Remove runout-flag delays | Optional `--trim-runout-waits`; match only the reviewed PRINT_START loop | Same |
+| Persistent USB evidence | Optional `--usb-event-log`; bounded root-managed event log | Same |
+| Tilt/mesh speed | Optional `--fast-probing`; reviewed 150/200 mm/s settings become 300 mm/s | Same; includes Beacon scan speed |
+| Timed Box drying | Optional `--box-drying`; requires an active Box and valid QIDI filament limits | Same |
 
 The clock guard also quarantines **automatic RFID insertion** unless the existing
 saved variable `qidi_box_auto_insert=1` explicitly enables it. Manual loading is
@@ -370,6 +379,30 @@ removes the IRQ-only debounce option in active Box sections and existing
 `cfg_with_1` through `cfg_with_4` templates. It does not flash or repair MCU
 interrupt code, and neither guard fixes USB/power faults. No loading, motion,
 heating or power-loss recovery operation is run to test installation.
+
+`--trim-runout-waits` removes the `G4 P100` inside the recognized sixteen-flag
+`PRINT_START` loop, retaining every synchronous `SAVE_VARIABLE`. It preserves
+other waits and customized Beacon workflows. Missing or unfamiliar loops are
+skipped with a note; already-trimmed loops remain unchanged. It edits the active
+include graph, not QIDI's reset templates. Keep this change in the configuration
+source of truth too, and check again after a vendor configuration reset.
+
+`--usb-event-log` installs a root-only Unix datagram socket, a udev sender and a
+socket-activated writer. The sender does no storage writes; the writer fsyncs
+each record and retains two files of at most 256 KiB each in
+`/var/lib/hlab-usb-events/`. Records contain action, kernel port, vendor/product
+IDs, boot UUID, Unix time and monotonic time, without USB serial numbers.
+Service readiness is acknowledged only after the first record is persisted.
+Klippee CLI 2026.11.23 or later includes these files in diagnostics. A missing
+event is inconclusive: the queue can overflow and an event cannot be recorded
+after host power has disappeared. Check mode does not create the socket or log.
+Rollback restores service policy and installed files while retaining collected
+evidence. This host option currently shares the stock-QIDI 1.8.2/2.1.1 gate;
+it does not install on mainline firmware through this command.
+
+After code installation, hardware acceptance remains a supervised Box print
+start and a controlled idle USB/reboot test. Do not disconnect a controller
+during a print to validate logging.
 
 The command requires existing SSH access, noninteractive root sudo, the stock
 `mks` installation layout and ready/idle Klipper with all heater targets at zero.
@@ -388,6 +421,29 @@ transaction, copies `recovery.tar.gz` to `PLAB_HOME/backups/qidi-fixes/`, and
 checks its SHA-256 before authorizing changes. It then stops Klipper, installs,
 restarts the host service and checks controllers and guard status. Repeat runs
 with the same options make no edits when everything is already current.
+
+`--fast-probing` updates recognized `[z_tilt]` and `[bed_mesh]` speeds in the
+active include graph to 300 mm/s, preserving positions, sample counts and
+acceleration. Other custom speeds are skipped with a note. The effective
+loaded speeds are verified after restart. The bundled mainline Beacon profile
+also uses 300 mm/s for both. Supervised repeatability/mesh-quality checks remain
+necessary on the target printer before treating the tuning as commissioned.
+
+`--box-drying` installs the `box_drying` Klipper extension and activates its
+configuration section. It validates the printer's own `officiall_filas_list.cfg`
+before writes, preserving that file on apply and rollback. No drying cycle is
+started during installation. Use `KLIPPEE_BOX_DRY BOX=1 TEMP=45 HOURS=4 HUMIDITY=20`
+and `KLIPPEE_BOX_DRY_STOP BOX=1` from the printer console while idle.
+
+Each Box uses an independent monotonic deadline; positive fractional hours do
+not round to an untimed cycle. `HOURS=0` is explicitly untimed. Every two seconds
+the controller checks loaded slots against current vendor limits, capped at
+65 C, and stops if metadata is unknown, disallows heating or now requires a
+lower temperature. Humidity control has five-point hysteresis and refuses
+invalid readings. Printing, restarts and `TURN_OFF_HEATERS` cancel managed
+cycles. A changed external heater target ends ownership without resetting it.
+Use the stop command to cancel a humidity-paused cycle: an external write of
+the same zero target is indistinguishable from an unchanged target.
 
 #### Undo fixes
 
