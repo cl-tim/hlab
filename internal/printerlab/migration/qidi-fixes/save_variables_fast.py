@@ -147,11 +147,11 @@ class SaveVariablesFast:
             self.fallbacks += 1
             return self.original(gcmd)
 
-    def save_box_variable(self, name, value):
+    def save_box_variable(self, varname, value):
         owner, original = self.vendor
-        if getattr(owner, 'save_variables', None) is not self.save_vars or not self.save(name, value, self.gcode.error):
+        if getattr(owner, 'save_variables', None) is not self.save_vars or not self.save(varname, value, self.gcode.error):
             self.fallbacks += 1
-            return original(name, value)
+            return original(varname, value)
 
     def get_status(self, eventtime):
         return dict(active=self.active, box_hook=self.box_hook, writes=self.writes,

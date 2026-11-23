@@ -64,7 +64,7 @@ class SavesTests(unittest.TestCase):
         self.sv = self.stock.SaveVariables(self.config)
         self.objects['save_variables'] = self.sv
         self.box = SimpleNamespace(save_variables=self.sv,
-            save_variable=lambda name, value: self.stock.SaveVariables.cmd_SAVE_VARIABLE(self.sv, Command(name, repr(value))))
+            save_variable=lambda varname, value: self.stock.SaveVariables.cmd_SAVE_VARIABLE(self.sv, Command(varname, repr(value))))
         self.objects['box_extras'] = self.box
         self.extension = self.fast.load_config(self.config)
         self.extension.connect()
@@ -78,7 +78,7 @@ class SavesTests(unittest.TestCase):
         self.sv.runout_0 = 9
         self.invoke('runout_0', '0')
         self.assertEqual(self.sv.runout_0, 0)
-        self.box.save_variable('box_count', 1)
+        self.box.save_variable(varname='box_count', value=1)
         self.assertEqual((self.path.read_bytes(), self.path.stat().st_mtime_ns), before)
         self.assertIs(self.sv.allVariables, current)
         self.assertEqual(self.extension.get_status(0), dict(active=True, box_hook='active', writes=0, skipped=2, fallbacks=0, errors=0))
