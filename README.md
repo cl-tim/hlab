@@ -1,5 +1,7 @@
 # hlab
 
+If you like this project, you can [support me here](https://ko-fi.com/tquinn)
+
 Manage a homelab fleet of Linux machines over SSH and the Klipper printers
 beside them, with a single compiled binary.
 
