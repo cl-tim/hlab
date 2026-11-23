@@ -77,6 +77,10 @@ round trip, exposes hook/write counters, and omits Valve-Oil's variable-name
 migration. Installation is restricted to the extracted stock Plus4 1.8.2 and
 2.1.1 source fingerprints, including each version's Box binary. No vendor
 binary is shipped. The GPLv3 stock `save_variables.py` in the test fixtures is
-from [QIDI's Klipper source](https://github.com/QIDITECH/klipper/blob/4bb7c6337936ef273e621d1f55bc0ef92114785d/klippy/extras/save_variables.py),
-SHA-256 `0327ce54b1a7286d97b0b2fbe008ecc9a36057a5d12642fd6237552c5e77b682`.
-Tests compare actual saved files and status against this stock implementation.
+the stock OTA copy of [QIDI's Klipper source](https://github.com/QIDITECH/klipper/blob/4bb7c6337936ef273e621d1f55bc0ef92114785d/klippy/extras/save_variables.py),
+preserving its CRLF bytes: SHA-256
+`0327ce54b1a7286d97b0b2fbe008ecc9a36057a5d12642fd6237552c5e77b682`.
+The published Git source uses LF (SHA-256
+`5d18c88f16926d35e550c37e3172631ebb466ed07ee0b39e18557873379b8dbf`);
+its contents otherwise match. Tests compare actual saved files and status
+against this stock implementation.
