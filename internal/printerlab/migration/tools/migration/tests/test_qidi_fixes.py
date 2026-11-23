@@ -224,9 +224,12 @@ timeout: 120
         self.assertEqual(macros.read_bytes(), original)
 
     def test_startup_verifies_effective_runout_macro_not_only_files(self):
-        for applied in (False, True):
+        for applied, normalized in ((False, False), (True, False), (False, True), (True, True)):
             source = fixes.trim_runout_waits(START)[0] if applied else START
             body = source.split('gcode:\n', 1)[1].split('[gcode_macro KEEP]', 1)[0]
+            if normalized:
+                # Real Klipper configfile responses strip each macro line.
+                body = '\n'.join(line.strip() for line in body.splitlines())
             self.fix.result['startup_verified'] = False
             self.fix.result['version'] = '2.1.1'
             self.updater.api.side_effect = [
@@ -240,6 +243,15 @@ timeout: 120
                     with self.assertRaisesRegex(fixes.FixError, 'Startup verification timed out'):
                         self.fix.verify(dict(controllers=[], runout='macros.cfg'))
             self.assertEqual(self.fix.result['startup_verified'], applied)
+
+    def test_startup_queries_named_controllers_with_escaped_object_names(self):
+        controllers = ['mcu', 'mcu U_1', 'mcu mcu_box1']
+        self.updater.api.return_value = {'status': {
+            name: {'mcu_version': 'fixture'} for name in controllers
+        }}
+        self.fix.verify(dict(controllers=controllers), guards=False)
+        self.updater.api.assert_called_once_with(
+            '/printer/objects/query?mcu&mcu%20U_1&mcu%20mcu_box1')
 
     def test_unknown_runout_loop_is_skipped_and_opt_in_still_reports_why(self):
         macros = self.config / 'macros.cfg'

@@ -17,6 +17,7 @@ import subprocess
 import tarfile
 import tempfile
 import time
+import urllib.parse
 
 
 TRANSACTIONS = Path('/var/lib/hlab/qidi-fixes')
@@ -520,7 +521,8 @@ class Fixes:
             try:
                 self.updater.idle()
                 names = list(plan['controllers']) + (['box_output_clock_guard'] if guards else [])
-                status = self.updater.api('/printer/objects/query?' + '&'.join(names))['status']
+                status = self.updater.api('/printer/objects/query?' + '&'.join(
+                    urllib.parse.quote(name, safe='') for name in names))['status']
                 for name in plan['controllers']:
                     if not status.get(name, {}).get('last_received_sample' if name == 'beacon' else 'mcu_version'):
                         raise FixError('Controller did not return: ' + name)
@@ -536,7 +538,10 @@ class Fixes:
                     if plan.get('runout'):
                         loaded = self.updater.api('/printer/objects/query?configfile')['status']['configfile']['config']
                         macro = loaded.get('gcode_macro PRINT_START', {}).get('gcode', '')
-                        _, state = trim_runout_waits('[gcode_macro PRINT_START]\ngcode:\n' + macro + '\n')
+                        # Klipper's configfile response strips macro-line indentation.
+                        # Restore config-value indentation only for this read-only check.
+                        body = '\n'.join('    ' + line for line in macro.splitlines())
+                        _, state = trim_runout_waits('[gcode_macro PRINT_START]\ngcode:\n' + body + '\n')
                         if state != 'unchanged':
                             raise FixError('Loaded PRINT_START did not prove the trimmed runout loop')
                     if plan.get('usb') and any(self.updater.service_state(unit) != 'active' for unit in (USB_SOCKET, USB_SERVICE)):
