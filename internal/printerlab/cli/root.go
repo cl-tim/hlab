@@ -73,6 +73,7 @@ func NewCommand(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 	root.SetIn(stdin)
 	root.SetOut(stdout)
 	root.SetErr(stderr)
+	clikit.AddHelpFooter(root, clikit.PrinterDocsURL)
 	flags.StringVar(&a.configPath, "config", "", "config holding the printer inventory (default: "+config.UnifiedPath()+")")
 	flags.StringVarP(&a.outputFlag, "output", "o", "table", "output format: table, json, yaml")
 	flags.IntVarP(&a.concurrency, "concurrency", "c", 0, "maximum concurrent read operations")

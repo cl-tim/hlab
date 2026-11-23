@@ -104,6 +104,10 @@ func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 			return nil
 		},
 	}
+	root.SetIn(stdin)
+	root.SetOut(stdout)
+	root.SetErr(stderr)
+	clikit.AddHelpFooter(root, clikit.HlabDocsURL)
 
 	f := root.PersistentFlags()
 	f.StringVar(&a.configPath, "config", "", "path to the config file (default: "+config.DefaultPath()+")")

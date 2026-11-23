@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	"github.com/cl-tim/hlab/internal/clikit"
 )
 
 // NewCommand exposes workspace sync without loading hlab's server inventory.
@@ -20,6 +22,7 @@ func NewCommand(in io.Reader, out, errOut io.Writer) *cobra.Command {
 	root.SetIn(in)
 	root.SetOut(out)
 	root.SetErr(errOut)
+	clikit.AddHelpFooter(root, clikit.KlippeeDocsURL)
 	root.PersistentFlags().StringVar(&workspace, "workspace", "", "configuration workspace (default: current directory)")
 	root.PersistentFlags().StringVar(&connection, "connection", "", "explicit connection file (required for non-default printer state)")
 	resolve := func() (string, string, error) {

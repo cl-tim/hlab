@@ -13,6 +13,22 @@ import (
 	"github.com/cl-tim/hlab/internal/output"
 )
 
+const (
+	HlabDocsURL    = "https://cl-tim.github.io/hlab/"
+	PrinterDocsURL = "https://cl-tim.github.io/hlab/reference/printers/"
+	KlippeeDocsURL = "https://cl-tim.github.io/klippee-web/"
+)
+
+// AddHelpFooter appends a documentation link to Cobra's normal help output.
+// The configured HelpFunc is inherited by descendants that do not define one.
+func AddHelpFooter(command *cobra.Command, documentationURL string) {
+	defaultHelp := command.HelpFunc()
+	command.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		defaultHelp(cmd, args)
+		fmt.Fprintf(cmd.OutOrStdout(), "\nDocumentation: %s\n", documentationURL)
+	})
+}
+
 // ExitError carries a specific process exit code up to main. Commands return
 // it rather than calling os.Exit, so deferred cleanup still runs.
 type ExitError struct {
