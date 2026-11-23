@@ -112,7 +112,7 @@ func TestFixesRejectsContradictoryReceipts(t *testing.T) {
 }
 
 func TestFixesForwardsAndBindsOptionalModes(t *testing.T) {
-	for _, mismatch := range []bool{false, true} {
+	for _, mismatch := range []string{"none", "usb", "variables"} {
 		b := nativeTestBackend(t)
 		b.transport = func(_ string, payload []byte) ([]byte, int, error) {
 			line := strings.SplitN(string(payload), "\n", 3)[1]
@@ -124,22 +124,23 @@ func TestFixesForwardsAndBindsOptionalModes(t *testing.T) {
 			if err := json.Unmarshal([]byte(encoded), &options); err != nil {
 				t.Fatal(err)
 			}
-			if options["trim_runout_waits"] != true || options["usb_event_log"] != true || options["fast_probing"] != true || options["box_drying"] != true {
+			if options["trim_runout_waits"] != true || options["usb_event_log"] != true || options["fast_probing"] != true || options["box_drying"] != true || options["fast_variable_saves"] != true {
 				t.Fatalf("options lost: %v", options)
 			}
 			assets := options["assets"].(map[string]any)
-			if assets["qidi-fixes/usb_events.py"] == nil {
-				t.Fatal("USB writer not shipped to the remote transaction")
+			if assets["qidi-fixes/usb_events.py"] == nil || assets["qidi-fixes/save_variables_fast.py"] == nil {
+				t.Fatal("optional writer assets not shipped to the remote transaction")
 			}
 			result := fixesReceipt("checked")
-			result.TrimRunoutWaits, result.USBEventLog = true, !mismatch
+			result.TrimRunoutWaits, result.USBEventLog = true, mismatch != "usb"
 			result.FastProbing, result.BoxDrying = true, true
+			result.FastVariableSaves = mismatch != "variables"
 			raw, _ := json.Marshal(result)
 			return raw, 0, nil
 		}
-		err := b.execute([]string{"qidi-fixes", "--printer", "fixture.example", "--model", "plus4", "--moonraker-port", "7125", "--wait-seconds", "5", "--check", "--trim-runout-waits", "--usb-event-log", "--fast-probing", "--box-drying"})
-		if (err != nil) != mismatch {
-			t.Fatalf("mismatch=%v: %v", mismatch, err)
+		err := b.execute([]string{"qidi-fixes", "--printer", "fixture.example", "--model", "plus4", "--moonraker-port", "7125", "--wait-seconds", "5", "--check", "--trim-runout-waits", "--usb-event-log", "--fast-probing", "--box-drying", "--fast-variable-saves"})
+		if (err != nil) != (mismatch != "none") {
+			t.Fatalf("mismatch=%s: %v", mismatch, err)
 		}
 	}
 }

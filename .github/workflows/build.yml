@@ -27,11 +27,12 @@ jobs:
       # The race detector needs cgo, which the Windows development machine
       # lacks, so this is the only place it runs.
       - name: Test
-        run: go test -race ./...
+        run: go test -race -p 1 -parallel 1 ./...
       - name: Plus4 updater and controller fixtures
         run: |
           python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_qidi_*.py' -v
           python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_box_drying.py' -v
           python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_usb_events.py' -v
+          python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_save_variables_fast.py' -v
       - name: Cross-compile
         run: make release

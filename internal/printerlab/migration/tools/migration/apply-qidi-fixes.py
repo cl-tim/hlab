@@ -282,6 +282,7 @@ class Fixes:
                            usb_event_log=options.get('usb_event_log', False),
                            fast_probing=options.get('fast_probing', False),
                            box_drying=options.get('box_drying', False),
+                           fast_variable_saves=options.get('fast_variable_saves', False),
                            backup='', backup_sha256='', local_backup=options.get('local_backup', ''),
                            startup_verified=False, changes=[], notes=[], error='')
 
@@ -341,6 +342,22 @@ class Fixes:
             raise FixError('POWER_LOSS_RESUME must use the reviewed stock PLR wrapper')
         desired = {}
         sections = ['box_output_clock_guard']
+        variable_sources = {}
+        if self.options.get('fast_variable_saves'):
+            if 'save_variables' not in names:
+                raise FixError('Fast variable saves require [save_variables]')
+            scope = {'__name__': 'hlab_save_policy'}
+            exec(compile(base64.b64decode(self.options['assets']['qidi-fixes/save_variables_fast.py']), 'save_variables_fast.py', 'exec'), scope)
+            extras = self.updater.home / 'klipper/klippy/extras'
+            try:
+                scope['validate_sources'](extras, version)
+            except (ValueError, OSError) as exc:
+                raise FixError(str(exc))
+            for name in ('save_variables.py', 'box_extras.so'):
+                path = safe_path(extras / name)
+                if path.exists():
+                    variable_sources[str(path)] = snapshot(path)
+            sections.append('save_variables_fast')
         drying_metadata = None
         if self.options.get('box_drying'):
             if not any(re.fullmatch(r'heater_generic heater_box[1-4]', name) for name in names):
@@ -436,7 +453,7 @@ class Fixes:
         return dict(version=version, before=before, writes=writes, plr_changed=plr['changed'],
                     plr_backup=plr.get('backup_manifest'), logs=logs, activate_logs=activate_logs,
                     usb=usb, runout=runout, probe_sections=sorted(probe_sections),
-                    drying_metadata=drying_metadata, changed=bool(changes), controllers=self.updater.idle())
+                    drying_metadata=drying_metadata, variable_sources=variable_sources, variable_box='box_extras' in names, changed=bool(changes), controllers=self.updater.idle())
 
     def save(self):
         atomic_write(self.tx / 'manifest.json', (json.dumps(self.manifest, sort_keys=True) + '\n').encode('utf-8'),
@@ -458,6 +475,7 @@ class Fixes:
         self.manifest['usb_event_log'] = self.options.get('usb_event_log', False)
         self.manifest['fast_probing'] = self.options.get('fast_probing', False)
         self.manifest['box_drying'] = self.options.get('box_drying', False)
+        self.manifest['fast_variable_saves'] = self.options.get('fast_variable_saves', False)
         if plan.get('usb'):
             self.manifest['usb_before'] = dict((unit, dict(enabled=self.updater.enabled_state(unit),
                                                           active=self.updater.service_state(unit) == 'active'))
@@ -527,6 +545,11 @@ class Fixes:
                     if not status.get(name, {}).get('last_received_sample' if name == 'beacon' else 'mcu_version'):
                         raise FixError('Controller did not return: ' + name)
                 if guards:
+                    if plan.get('variable_sources'):
+                        saved = self.updater.api('/printer/objects/query?save_variables_fast')['status'].get('save_variables_fast', {})
+                        expected_box = 'active' if plan.get('variable_box') else 'absent'
+                        if saved.get('active') is not True or saved.get('box_hook') != expected_box or saved.get('errors') != 0:
+                            raise FixError('Fast variable-save hooks did not activate')
                     if plan.get('probe_sections'):
                         settings = self.updater.api('/printer/objects/query?configfile')['status']['configfile']['settings']
                         if any(float(settings.get(name, {}).get('speed', 0)) != 300 for name in plan['probe_sections']):
@@ -589,7 +612,7 @@ class Fixes:
         plan = self.load(self.options['backup'])
         if self.manifest['status'] != 'prepared' or self.manifest['polling'] != self.options['polling'] or self.result['backup_sha256'] != self.options['backup_sha256']:
             raise FixError('Apply does not match the desktop-verified recovery transaction')
-        if any(self.manifest.get(key, False) != self.options.get(key, False) for key in ('trim_runout_waits', 'usb_event_log', 'fast_probing', 'box_drying')):
+        if any(self.manifest.get(key, False) != self.options.get(key, False) for key in ('trim_runout_waits', 'usb_event_log', 'fast_probing', 'box_drying', 'fast_variable_saves')):
             raise FixError('Apply options differ from prepared maintenance transaction')
         if self.plan() != plan:
             raise FixError('Printer files or state changed after preparation; start a new check')
@@ -599,6 +622,8 @@ class Fixes:
         self.stop()
         if dict((path, snapshot(path)) for path in plan['before']) != plan['before']:
             raise FixError('Configuration changed while stopping; rollback required')
+        if any(snapshot(path) != metadata for path, metadata in plan.get('variable_sources', {}).items()):
+            raise FixError('Saved-variable source changed while stopping; rollback required')
         if plan.get('usb'):
             for unit in (USB_SOCKET, USB_SERVICE):
                 if self.updater.service_state(unit) in ('active', 'activating', 'reloading', 'deactivating'):

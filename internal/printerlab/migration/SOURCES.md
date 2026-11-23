@@ -67,3 +67,16 @@ References:
 - [Official update procedure](https://wiki.qidi3d.com/en/X-Plus4/Manual/firmware-update)
 - [Package/installer analysis](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/firmware/FIRMWARE-2.1.1.md)
 - [Upload protocol](https://itead.cc/nextion/nextion-hmi-upload-protocol/comment-page-1/)
+
+## Durable stock saved-variable writes
+
+`qidi-fixes/save_variables_fast.py` is maintained here under GPLv3, inspired by
+[Valve-Oil's saved-variable optimization](https://github.com/thelegendtubaguy/Valve-Oil/blob/c89dddc475b73e060027ff5a2489239df1b14406/installer/klipper/extras/save_variables_fast.py).
+It adds file and directory fsync, uses QIDI's in-memory ConfigParser/literal
+round trip, exposes hook/write counters, and omits Valve-Oil's variable-name
+migration. Installation is restricted to the extracted stock Plus4 1.8.2 and
+2.1.1 source fingerprints, including each version's Box binary. No vendor
+binary is shipped. The GPLv3 stock `save_variables.py` in the test fixtures is
+from [QIDI's Klipper source](https://github.com/QIDITECH/klipper/blob/4bb7c6337936ef273e621d1f55bc0ef92114785d/klippy/extras/save_variables.py),
+SHA-256 `0327ce54b1a7286d97b0b2fbe008ecc9a36057a5d12642fd6237552c5e77b682`.
+Tests compare actual saved files and status against this stock implementation.

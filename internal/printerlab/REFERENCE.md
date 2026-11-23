@@ -370,6 +370,7 @@ hlab printer firmware fixes --target printer.local --fast-probing --box-drying -
 | Remove runout-flag delays | Optional `--trim-runout-waits`; match only the reviewed PRINT_START loop | Same |
 | Persistent USB evidence | Optional `--usb-event-log`; bounded root-managed event log | Same |
 | Tilt/mesh speed | Optional `--fast-probing`; reviewed 150/200 mm/s settings become 300 mm/s | Same; includes Beacon scan speed |
+| Faster durable variable saves | Optional `--fast-variable-saves`; exact reviewed QIDI source fingerprints required | Same |
 | Timed Box drying | Optional `--box-drying`; requires an active Box and valid QIDI filament limits | Same |
 
 The clock guard also quarantines **automatic RFID insertion** unless the existing
@@ -444,6 +445,20 @@ invalid readings. Printing, restarts and `TURN_OFF_HEATERS` cancel managed
 cycles. A changed external heater target ends ownership without resetting it.
 Use the stop command to cancel a humidity-paused cycle: an external write of
 the same zero target is indistinguishable from an unchanged target.
+
+`--fast-variable-saves` installs `[save_variables_fast]` for the reviewed stock
+`SAVE_VARIABLE` and Box direct-save paths. Identical saves avoid disk IO;
+changed values use a unique sibling file, file fsync, atomic replacement and
+directory fsync, preserving file ownership and permissions. Values, case
+normalization, defaults and error behaviour follow QIDI's file format. Unusual
+names or values use the original handler; an IO failure never retries through
+its truncating writer. Installation makes no saved-variable changes and checks
+both loaded hooks after restart. This option does not alter PLR checkpoints,
+migrate Valve-Oil variable names, or install its firmware. A firmware update
+that changes reviewed source fingerprints requires a new compatibility review.
+
+The [Box heater refresh review](../../docs/plus4-box-heater-refresh.md) records
+why heater refresh and sensor shutdown handling remain separate candidates.
 
 #### Undo fixes
 

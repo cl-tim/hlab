@@ -26,6 +26,7 @@ func TestBundleExtractsRequiredRuntimeWithoutCompanionCheckouts(t *testing.T) {
 		"plr-hardening/install.py", "plr-hardening/manifest.json",
 		"qidi-fixes/usb_events.py",
 		"qidi-fixes/box_drying.py",
+		"qidi-fixes/save_variables_fast.py",
 		"LICENSE.firmware", "LICENSE.configs",
 	} {
 		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(name))); err != nil {

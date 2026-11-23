@@ -75,7 +75,7 @@ func (b *nativeBackend) execute(args []string) error {
 		pointers[name] = fs.String(name, defaults[name], "")
 	}
 	bools := map[string]*bool{}
-	for _, name := range strings.Fields("list-only json include-facts include-gcodes include-logs include-environments commissioning force generate reuse check host-only box-motion-polling trim-runout-waits usb-event-log fast-probing box-drying") {
+	for _, name := range strings.Fields("list-only json include-facts include-gcodes include-logs include-environments commissioning force generate reuse check host-only box-motion-polling trim-runout-waits usb-event-log fast-probing box-drying fast-variable-saves") {
 		bools[name] = fs.Bool(name, false, "")
 	}
 	var ids repeatedStrings

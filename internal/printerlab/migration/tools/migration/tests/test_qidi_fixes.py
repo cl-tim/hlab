@@ -79,7 +79,7 @@ timeout: 120
         self.updater.api.return_value = dict(objects=['box_output_clock_guard', 'box_status_compat'])
         asset_root = HELPER.parents[2]
         assets = dict((name, base64.b64encode((asset_root / name).read_bytes()).decode('ascii'))
-                      for name in ('qidi-fixes/box_output_clock_guard.py', 'qidi-fixes/box_status_compat.py', 'qidi-fixes/box_drying.py'))
+                      for name in ('qidi-fixes/box_output_clock_guard.py', 'qidi-fixes/box_status_compat.py', 'qidi-fixes/box_drying.py', 'qidi-fixes/save_variables_fast.py'))
         self.options = dict(check_only=False, polling=False, assets=assets, transaction_id='a' * 32,
                             wait_seconds=5, phase='prepare')
         self.fix = fixes.Fixes(self.options, self.updater)
@@ -95,6 +95,68 @@ timeout: 120
     def identity(self):
         self.fix.result['version'] = self.updater.version()
         return self.fix.result['version']
+
+    def test_fast_variable_saves_install_idempotence_and_rollback_preserve_values(self):
+        extras = self.home / 'klipper/klippy/extras'
+        (extras / 'save_variables.py').write_bytes((HELPER.parent / 'tests/fixtures/qidi_save_variables.py').read_bytes())
+        self.printer.write_text(self.printer.read_text() + '\n[save_variables]\nfilename: saved_variables.cfg\n')
+        values = self.config / 'saved_variables.cfg'
+        values.write_bytes(b'[Variables]\nbox_count = 1\nrunout_0 = 0\n')
+        before = values.read_bytes()
+        self.fix.options['fast_variable_saves'] = True
+        self.updater.api.return_value = dict(objects=['box_output_clock_guard', 'save_variables_fast'])
+        plan = self.prepare()
+        self.assertTrue(plan['variable_sources'])
+        self.fix.apply()
+        self.assertIn('[save_variables_fast]', self.printer.read_text())
+        self.assertEqual(values.read_bytes(), before)
+        self.assertFalse(self.fix.plan()['changed'])
+        self.fix.options['rollback'] = str(self.fix.tx)
+        self.fix.rollback()
+        self.assertNotIn('[save_variables_fast]', self.printer.read_text())
+        self.assertFalse((extras / 'save_variables_fast.py').exists())
+        self.assertEqual(values.read_bytes(), before)
+
+    def test_fast_variable_saves_prepared_mode_and_source_are_bound(self):
+        extras = self.home / 'klipper/klippy/extras'
+        (extras / 'save_variables.py').write_bytes((HELPER.parent / 'tests/fixtures/qidi_save_variables.py').read_bytes())
+        self.printer.write_text(self.printer.read_text() + '\n[save_variables]\n')
+        self.fix.options['fast_variable_saves'] = True
+        self.prepare()
+        self.fix.options['fast_variable_saves'] = False
+        with self.assertRaisesRegex(fixes.FixError, 'options differ'):
+            self.fix.apply()
+        self.fix.stop.assert_not_called()
+        self.fix.options['fast_variable_saves'] = True
+        (extras / 'save_variables.py').write_text('changed source')
+        with self.assertRaisesRegex(fixes.FixError, 'Unreviewed saved-variable'):
+            self.fix.apply()
+        self.fix.stop.assert_not_called()
+
+    def test_fast_variable_saves_reject_unknown_source_without_writes(self):
+        self.fix.options['fast_variable_saves'] = True
+        with self.assertRaisesRegex(fixes.FixError, 'require \\[save_variables'):
+            self.fix.plan()
+        self.printer.write_text(self.printer.read_text() + '\n[save_variables]\n')
+        (self.home / 'klipper/klippy/extras/save_variables.py').write_text('custom')
+        with self.assertRaisesRegex(fixes.FixError, 'Unreviewed saved-variable'):
+            self.fix.plan()
+        self.fix.plr.assert_not_called()
+
+    def test_fast_variable_saves_verifies_both_loaded_hooks(self):
+        self.fix.result['version'] = '2.1.1'
+        for active, box_hook, errors in ((True, 'active', 0), (False, 'active', 0), (True, 'absent', 0), (True, 'active', 1)):
+            self.updater.api.side_effect = [
+                {'status': {'box_output_clock_guard': {'state': 'inactive-no-box'}}},
+                {'status': {'save_variables_fast': dict(active=active, box_hook=box_hook, errors=errors)}},
+            ]
+            with patch.object(fixes.time, 'monotonic', side_effect=[0, 0, 6]), patch.object(fixes.time, 'sleep'):
+                plan = dict(controllers=[], variable_sources={'/extras/box_extras.so': {}}, variable_box=True)
+                if active and box_hook == 'active' and not errors:
+                    self.fix.verify(plan)
+                else:
+                    with self.assertRaises(fixes.FixError):
+                        self.fix.verify(plan)
 
     def test_version_scopes_status_shim_without_removing_existing_shim(self):
         for version in ('1.8.2', '2.1.1'):

@@ -22,15 +22,15 @@ func executeFixes(t *testing.T, args ...string) (string, error) {
 
 func TestDirectFixesBypassesInventoryAndForwardsOptions(t *testing.T) {
 	fixture, home := directFirmwareFixture(t, true)
-	receipt := migrate.QIDIFixesResult{Schema: 1, OK: true, Status: "checked", Model: "plus4", Version: "2.1.1", CheckOnly: true, Polling: true, TrimRunoutWaits: true, USBEventLog: true, FastProbing: true, BoxDrying: true}
+	receipt := migrate.QIDIFixesResult{Schema: 1, OK: true, Status: "checked", Model: "plus4", Version: "2.1.1", CheckOnly: true, Polling: true, TrimRunoutWaits: true, USBEventLog: true, FastProbing: true, BoxDrying: true, FastVariableSaves: true}
 	raw, _ := json.Marshal(receipt)
 	setMigrationHelper(t, fixture, string(raw))
-	out, err := executeFixes(t, "--target", "printer.example", "--user", "ops", "--identity", "/fixture/key", "--ssh-port", "2222", "--moonraker-port", "17125", "--api-key-env", "FIXTURE_KEY", "--box-motion-polling", "--trim-runout-waits", "--usb-event-log", "--fast-probing", "--box-drying", "--check", "--config", "missing.yaml", "-o", "json")
+	out, err := executeFixes(t, "--target", "printer.example", "--user", "ops", "--identity", "/fixture/key", "--ssh-port", "2222", "--moonraker-port", "17125", "--api-key-env", "FIXTURE_KEY", "--box-motion-polling", "--trim-runout-waits", "--usb-event-log", "--fast-probing", "--box-drying", "--fast-variable-saves", "--check", "--config", "missing.yaml", "-o", "json")
 	if err != nil || !json.Valid([]byte(out)) {
 		t.Fatalf("check failed: %v %s", err, out)
 	}
 	args := strings.Join(readMigrationArgs(t, fixture), " ")
-	for _, want := range []string{"qidi-fixes", "--printer printer.example", "--printer-user mks", "--user ops", "--port 2222", "--identity /fixture/key", "--moonraker-port 17125", "--api-key-env FIXTURE_KEY", "--box-motion-polling", "--trim-runout-waits", "--usb-event-log", "--fast-probing", "--box-drying", "--check"} {
+	for _, want := range []string{"qidi-fixes", "--printer printer.example", "--printer-user mks", "--user ops", "--port 2222", "--identity /fixture/key", "--moonraker-port 17125", "--api-key-env FIXTURE_KEY", "--box-motion-polling", "--trim-runout-waits", "--usb-event-log", "--fast-probing", "--box-drying", "--fast-variable-saves", "--check"} {
 		if !strings.Contains(args, want) {
 			t.Errorf("missing %s in %s", want, args)
 		}
@@ -54,6 +54,7 @@ func TestFixesRejectsUnsafeRequestsBeforeBackend(t *testing.T) {
 		{"--target", "printer.example", "--usb-event-log", "--rollback", "/tmp/wrong", "-y"},
 		{"--target", "printer.example", "--fast-probing", "--rollback", "/tmp/wrong", "-y"},
 		{"--target", "printer.example", "--box-drying", "--rollback", "/tmp/wrong", "-y"},
+		{"--target", "printer.example", "--fast-variable-saves", "--rollback", "/tmp/wrong", "-y"},
 		{"--target", "printer.example", "--wait-timeout", "1s", "--check"},
 	} {
 		fixture, _ := directFirmwareFixture(t, true)

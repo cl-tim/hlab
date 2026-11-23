@@ -13,7 +13,7 @@ import (
 
 func newFirmwareFixesCmd(a *app) *cobra.Command {
 	var target firmwareUpdateTarget
-	var check, polling, trimRunout, usbLog, fastProbing, boxDrying bool
+	var check, polling, trimRunout, usbLog, fastProbing, boxDrying, fastVariableSaves bool
 	var rollback string
 	var wait time.Duration
 	cmd := &cobra.Command{
@@ -27,6 +27,7 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 			"--usb-event-log installs bounded persistent USB evidence without serial numbers.\n" +
 			"--fast-probing sets reviewed tilt/mesh speeds to 300 mm/s, including Beacon scans;\n" +
 			"--box-drying installs timed Box drying with live filament-limit checks.\n" +
+			"--fast-variable-saves skips unchanged stock saves and durably replaces changed values.\n" +
 			"Use --target HOST without enrollment or a configuration inventory. Existing SSH\n" +
 			"and passwordless sudo are required; no Klippee agent is required.\n" +
 			"Check mode changes no configuration or service. Apply requires idle/heaters off,\n" +
@@ -52,7 +53,7 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 					return err
 				}
 			}
-			if rollback != "" && (check || polling || trimRunout || usbLog || fastProbing || boxDrying) {
+			if rollback != "" && (check || polling || trimRunout || usbLog || fastProbing || boxDrying || fastVariableSaves) {
 				return fmt.Errorf("--rollback cannot be combined with --check or fix options")
 			}
 			if wait < 5*time.Second || wait > 10*time.Minute || wait%time.Second != 0 {
@@ -91,6 +92,9 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 			if boxDrying {
 				stage = append(stage, "--box-drying")
 			}
+			if fastVariableSaves {
+				stage = append(stage, "--fast-variable-saves")
+			}
 			if check {
 				stage = append(stage, "--check")
 			} else {
@@ -102,7 +106,7 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 				return fmt.Errorf("%s: invalid fixes result: %w (%v)", printer.Name, err, runErr)
 			}
 			if result.CheckOnly != check || result.Polling != polling || result.TrimRunoutWaits != trimRunout ||
-				result.USBEventLog != usbLog || result.FastProbing != fastProbing || result.BoxDrying != boxDrying {
+				result.USBEventLog != usbLog || result.FastProbing != fastProbing || result.BoxDrying != boxDrying || result.FastVariableSaves != fastVariableSaves {
 				return fmt.Errorf("fixes result does not match requested mode")
 			}
 			table := output.Table{Headers: []string{"PRINTER", "STATUS", "VERSION", "RECOVERY", "DETAIL"}}
@@ -132,6 +136,7 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 	cmd.Flags().BoolVar(&usbLog, "usb-event-log", false, "retain bounded USB events across reboots for Klippee diagnostics")
 	cmd.Flags().BoolVar(&fastProbing, "fast-probing", false, "set reviewed tilt/mesh travel and Beacon scan speeds to 300 mm/s")
 	cmd.Flags().BoolVar(&boxDrying, "box-drying", false, "install timed Box drying with live filament-limit checks")
+	cmd.Flags().BoolVar(&fastVariableSaves, "fast-variable-saves", false, "skip unchanged stock variable saves and durably replace changed values")
 	cmd.Flags().StringVar(&rollback, "rollback", "", "exact recovery transaction path returned by fixes; refuses subsequent file changes")
 	cmd.Flags().DurationVar(&wait, "wait-timeout", 3*time.Minute, "maximum startup verification time")
 	return cmd
