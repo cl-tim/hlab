@@ -4,6 +4,7 @@ hlab manages Linux servers over SSH and Klipper printers from one compiled
 binary. Start with the [getting started guide](getting-started.md), or choose
 a topic below.
 
+- [Linux fleet management](linux/index.md)
 - [Install hlab and manage your first machines](getting-started.md)
 - [Update or fix a stock QIDI Plus4](guides/qidi-plus4.md)
 - [Sync Klippee printer configurations](guides/klippee.md)

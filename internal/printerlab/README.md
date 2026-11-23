@@ -1,5 +1,4 @@
-# Printer guide moved
+# QIDI Plus4 printer guide
 
-The maintained QIDI Plus4 step-by-step guide is now in
-[`docs/guides/qidi-plus4.md`](../../docs/guides/qidi-plus4.md) and on the
+Guide: [`docs/guides/qidi-plus4.md`](../../docs/guides/qidi-plus4.md), also on the
 [hlab documentation site](https://cl-tim.github.io/hlab/guides/qidi-plus4/).

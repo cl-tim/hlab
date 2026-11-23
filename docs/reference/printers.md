@@ -304,9 +304,7 @@ an agent that cannot answer.
   `box-guard-status` reports the vendor IRQ mode as unsafe, so a restored
   template stays visible.
 
-## Firmware pages
-
-Older links to firmware sections on this page are kept as navigation pointers.
+## Firmware and updates
 
 <a id="firmware"></a>
 ### Firmware migration

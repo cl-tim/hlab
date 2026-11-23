@@ -2,8 +2,7 @@
 
 The Markdown in `docs/` is the authoritative source for both the published
 site and the documentation in this repository. The root `README.md` is a short
-entry point. Older printer guide paths under `internal/printerlab/` contain
-compatibility pointers to the canonical pages.
+entry point.
 
 ## Build locally
 
@@ -47,6 +46,7 @@ architecture and the reasoning behind it.
 ## Site navigation
 
 - [Getting started](getting-started.md)
+- [Linux fleet management](linux/index.md)
 - [QIDI Plus4 guide](guides/qidi-plus4.md)
 - [Klippee guide](guides/klippee.md)
 - [Printer command reference](reference/printers.md)

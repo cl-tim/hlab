@@ -1,5 +1,4 @@
-# Printer reference moved
+# Printer command reference
 
-The maintained printer command reference is now in
-[`docs/reference/printers.md`](../../docs/reference/printers.md) and on the
+Reference: [`docs/reference/printers.md`](../../docs/reference/printers.md), also on the
 [hlab documentation site](https://cl-tim.github.io/hlab/reference/printers/).

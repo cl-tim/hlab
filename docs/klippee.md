@@ -1,5 +1,4 @@
-# Klippee guide moved
+# Klippee configuration sync
 
-The maintained Klippee configuration sync guide is now in
-[`docs/guides/klippee.md`](guides/klippee.md) and on the
+Guide: [`docs/guides/klippee.md`](guides/klippee.md), also available on the
 [hlab documentation site](https://cl-tim.github.io/hlab/guides/klippee/).

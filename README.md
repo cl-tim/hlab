@@ -3,6 +3,9 @@
 Manage a homelab fleet of Linux machines over SSH and the Klipper printers
 beside them, with a single compiled binary.
 
+**[Open the hlab documentation site](https://cl-tim.github.io/hlab/)** for
+Linux management guides, printer workflows and command reference.
+
 Download a release or build from source, then follow the
 [getting started guide](docs/getting-started.md). Printer users can go straight
 to the [QIDI Plus4 guide](docs/guides/qidi-plus4.md); it does not require
@@ -11,6 +14,7 @@ enrollment or Klippee.
 ## Documentation
 
 - [Getting started](docs/getting-started.md)
+- [Linux management guides](docs/linux/index.md)
 - [QIDI Plus4 guide](docs/guides/qidi-plus4.md)
 - [Klippee guide](docs/guides/klippee.md)
 - [Printer command reference](docs/reference/printers.md)

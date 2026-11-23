@@ -37,6 +37,18 @@ plugins:
 nav:
   - Home: index.md
   - Getting started: getting-started.md
+  - Linux management:
+      - Overview: linux/index.md
+      - Inventory and discovery: linux/inventory.md
+      - SSH access and security: linux/access.md
+      - Commands and logs: linux/commands.md
+      - Facts and health: linux/facts-health.md
+      - Updates and reboots: linux/updates.md
+      - Network configuration: linux/network.md
+      - DNS publishing: linux/dns.md
+      - Compose stacks: linux/stacks.md
+      - Stack secrets: linux/secrets.md
+      - Backups and recovery: linux/backups.md
   - Guides:
       - QIDI Plus4 printer: guides/qidi-plus4.md
       - Klippee configuration sync: guides/klippee.md
