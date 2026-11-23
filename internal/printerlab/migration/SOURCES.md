@@ -74,8 +74,9 @@ References:
 [Valve-Oil's saved-variable optimization](https://github.com/thelegendtubaguy/Valve-Oil/blob/c89dddc475b73e060027ff5a2489239df1b14406/installer/klipper/extras/save_variables_fast.py).
 It adds file and directory fsync, uses QIDI's in-memory ConfigParser/literal
 round trip, exposes hook/write counters, and omits Valve-Oil's variable-name
-migration. Installation is restricted to the extracted stock Plus4 1.8.2 and
-2.1.1 source fingerprints, including each version's Box binary. No vendor
+migration. Installation is restricted to the reviewed stock Plus4 1.6.0, 1.8.2
+and 2.1.1 source fingerprints. The 1.6.0 profile excludes Box additions; newer
+profiles pin each version's Box binary. No vendor
 binary is shipped. The GPLv3 stock `save_variables.py` in the test fixtures is
 the stock OTA copy of [QIDI's Klipper source](https://github.com/QIDITECH/klipper/blob/4bb7c6337936ef273e621d1f55bc0ef92114785d/klippy/extras/save_variables.py),
 preserving its CRLF bytes: SHA-256
@@ -84,3 +85,29 @@ The published Git source uses LF (SHA-256
 `5d18c88f16926d35e550c37e3172631ebb466ed07ee0b39e18557873379b8dbf`);
 its contents otherwise match. Tests compare actual saved files and status
 against this stock implementation.
+
+### Legacy Plus4 1.6.0 profile
+
+The config fixtures come from QIDI's [1.6.0 tag](https://github.com/QIDITECH/QIDI_PLUS4/tree/f2b5caf92080c19acf7ab86630db99bdea8ee845/config).
+The printer config SHA-256 is
+`fcd37f9d390f1f4693754ad001364309dd1130028ac816e348cb2d463d230d88`;
+the macro fixture SHA-256 is
+`8399017d98d3661d48ec6d95f1294d5db62ccbb7d76885ecf2cfae57b3174d1b`.
+Only the exact duplicate resonance-tester stanza pair in that printer config
+is accepted. Base-image includes are not supplied in the updater archive;
+tests use synthetic placeholders and require their bytes to be preserved.
+The downloaded official archive (`PLUS4_V1.6.0.rar`, SHA-256
+`dbf869c69b9c8d5c42d9b11396be33f739942ecb114a420793e14a15ffc3cc30`)
+has the same printer config and adds `Z_TILT_ADJUST` to the tagged print-start
+macro. No archive or vendor executable is shipped here.
+
+The GPLv3 legacy save-variable fixture is the tag's pinned
+[Klipper source](https://github.com/QIDITECH/klipper/blob/a363ac03e0b4d0bf5dfdc2b6a79f5d270e906e08/klippy/extras/save_variables.py),
+including its copyright notice. Its LF SHA-256 is
+`168b64a2ae3022b7a3a6dac24fb9c0de541b152bd0cf1bbbc385b72c14cc8edf`;
+the otherwise identical CRLF variant is
+`362397ede2e1d79819b090632ab9bf11e8df80ef1b853a65f6c5a339afd057bf`.
+Tests compare legacy command output with that vendor implementation, preserve
+its direct section writer, and reject cross-version or unknown sources.
+The PLR source patch matches the tagged source, but the complete base-image
+recovery entrypoint has not been reviewed, so 1.6.0 maintenance skips PLR.

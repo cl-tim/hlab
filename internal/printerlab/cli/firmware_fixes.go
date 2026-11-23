@@ -17,8 +17,9 @@ func newFirmwareFixesCmd(a *app) *cobra.Command {
 	var rollback string
 	var wait time.Duration
 	cmd := &cobra.Command{
-		Use: "fixes [PRINTER]", Short: "Apply reviewed fixes to stock Plus4 1.8.2 or 2.1.1",
+		Use: "fixes [PRINTER]", Short: "Apply reviewed fixes to stock Plus4 1.6.0, 1.8.2 or 2.1.1",
 		Long: "Check or apply output-clock, power-loss recovery and Armbian log-space fixes.\n" +
+			"1.6.0 supports host logging, probing and legacy variable saves; Box and PLR fixes are skipped.\n" +
 			"The status compatibility shim is added only on 1.8.2; existing 2.1.1 shims are retained.\n" +
 			"--box-motion-polling optionally mitigates the Box IRQ watchdog defect in active\n" +
 			"configuration and stock templates. The clock guard disables automatic RFID insertion\n" +

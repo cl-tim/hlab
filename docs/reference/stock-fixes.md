@@ -22,18 +22,45 @@ hlab printer firmware fixes --target printer.local --fast-probing --box-drying -
 hlab printer firmware fixes --target printer.local --fast-probing --box-drying -y
 ```
 
-| Fix | Stock 1.8.2 | Stock 2.1.1 |
-| --- | --- | --- |
-| Box output-clock guard | Install and activate | Install and activate; live review confirmed the defect remains |
-| Hardened power-loss recovery | Install manifest-bound runtime and checkpoint patch | Same; the vendor still supplies the legacy recovery builder |
-| Journal size/retention limits and archive cleanup timer | Apply to detected small Armbian ramlog layout | Same layout check; skip with a note on other layouts |
-| Box `is_tool_change` status shim | Install and activate | Preserve an existing shim; do not add one because continued need is unproven |
-| Box motion-sensor polling | Optional `--box-motion-polling` | Optional mitigation for the unchanged Box IRQ path; a watchdog failure was not reproduced on 2.1.1 |
-| Remove runout-flag delays | Optional `--trim-runout-waits`; match only the reviewed PRINT_START loop | Same |
-| Persistent USB evidence | Optional `--usb-event-log`; bounded root-managed event log | Same |
-| Tilt/mesh speed | Optional `--fast-probing`; reviewed 150/200 mm/s settings become 300 mm/s | Same; includes Beacon scan speed |
-| Faster durable variable saves | Optional `--fast-variable-saves`; exact reviewed QIDI source fingerprints required | Same |
-| Timed Box drying | Optional `--box-drying`; requires an active Box and valid QIDI filament limits | Same |
+| Fix | Stock 1.6.0 | Stock 1.8.2 | Stock 2.1.1 |
+| --- | --- | --- | --- |
+| Box output-clock guard | Skipped; Box additions are refused | Install and activate | Install and activate; live review confirmed the defect remains |
+| Hardened power-loss recovery | Skipped; base-image recovery entrypoint is not reviewed | Install manifest-bound runtime and checkpoint patch | Same; the vendor still supplies the legacy recovery builder |
+| Journal size/retention limits and archive cleanup timer | Apply only to the detected small Armbian ramlog layout | Apply to detected small Armbian ramlog layout | Same layout check; skip with a note on other layouts |
+| Box `is_tool_change` status shim | Skipped | Install and activate | Preserve an existing shim; do not add one because continued need is unproven |
+| Box motion-sensor polling | Refused | Optional `--box-motion-polling` | Optional mitigation for the unchanged Box IRQ path; a watchdog failure was not reproduced on 2.1.1 |
+| Remove runout-flag delays | Skipped with a note; no stock Box loop | Optional `--trim-runout-waits`; match only the reviewed PRINT_START loop | Same |
+| Persistent USB evidence | Optional `--usb-event-log` | Optional `--usb-event-log`; bounded root-managed event log | Same |
+| Tilt/mesh speed | Optional `--fast-probing`; reviewed 150 mm/s settings become 300 mm/s | Optional `--fast-probing`; reviewed 150/200 mm/s settings become 300 mm/s | Same; includes Beacon scan speed |
+| Faster durable variable saves | Optional `--fast-variable-saves`; pinned legacy `SAVE_VARIABLE` implementation | Optional `--fast-variable-saves`; exact reviewed QIDI source fingerprints required | Same |
+| Timed Box drying | Refused | Optional `--box-drying`; requires an active Box and valid QIDI filament limits | Same |
+
+### Firmware 1.6.0
+
+Firmware is detected automatically. For the applicable optional fixes:
+
+```powershell
+hlab printer firmware fixes --target printer.local --usb-event-log --fast-probing --fast-variable-saves --check
+hlab printer firmware fixes --target printer.local --usb-event-log --fast-probing --fast-variable-saves -y
+```
+
+The 1.6.0 profile requires a non-Box installation. Box modules, configuration
+sections and controllers are refused. The exact two vendor `[resonance_tester]`
+stanzas may remain together in one file; changed stanzas, extra duplicates
+and duplicates split across includes are refused. Other configuration includes
+and calibration values are preserved.
+
+The 1.6.0 updater package does not contain all base-image includes, including
+`plr.cfg`. Maintenance preserves those files and the existing recovery scripts;
+it does not install or claim PLR hardening for this version. The firmware
+updater's minimum version for upgrading to 2.1.1 remains 1.8.2.
+
+Legacy variable saves have their own source fingerprints and loaded status
+profile, `legacy-1.6.0`. Unchanged `SAVE_VARIABLE` commands avoid writes and
+changed commands use the durable atomic writer. The vendor's separate
+`save_variable(section, option, value)` helper is preserved and is not optimized.
+Unknown sources and Box hooks are refused. Installation and rollback never
+rewrite the saved-variable data file.
 
 The clock guard also quarantines **automatic RFID insertion** unless the existing
 saved variable `qidi_box_auto_insert=1` explicitly enables it. Manual loading is
@@ -60,7 +87,7 @@ Klippee CLI 2026.11.23 or later includes these files in diagnostics. A missing
 event is inconclusive: the queue can overflow and an event cannot be recorded
 after host power has disappeared. Check mode does not create the socket or log.
 Rollback restores service policy and installed files while retaining collected
-evidence. This host option currently shares the stock-QIDI 1.8.2/2.1.1 gate;
+evidence. This host option shares the stock-QIDI 1.6.0/1.8.2/2.1.1 gate;
 it does not install on mainline firmware through this command.
 
 After code installation, hardware acceptance remains a supervised Box print
@@ -69,7 +96,8 @@ during a print to validate logging.
 
 The command requires existing SSH access, noninteractive root sudo, the stock
 `mks` installation layout and ready/idle Klipper with all heater targets at zero.
-Only **Plus4 1.8.2 and 2.1.1** are accepted. Configuration includes are preserved;
+Only **Plus4 1.6.0, 1.8.2 and 2.1.1** are accepted, with the version-specific
+scope above. Configuration includes are preserved;
 add-on symlinks can be read only within the printer home. Unsafe paths, duplicate
 sections, unexpected PLR source or a nonstandard recovery command are refused.
 An existing Klippee agent must prove quiescent and is stopped during edits.

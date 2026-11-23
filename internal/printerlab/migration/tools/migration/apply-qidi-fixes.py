@@ -97,6 +97,12 @@ WantedBy=timers.target
 ''',
 }
 HEADERS = re.compile(r'^\s*\[([^]\r\n]+)\]\s*(?:[#;].*)?$', re.M)
+# The 1.6.0 vendor config deliberately merges this exact pair. Do not permit
+# other duplicate sections or changed options under that exception.
+LEGACY_RESONANCE_SECTIONS = (
+    '[resonance_tester]\naccel_per_hz: 150\nmax_smoothing:0.5',
+    '[resonance_tester]\naccel_chip:adxl345\nprobe_points:\n   150, 150, 10',
+)
 
 
 class FixError(Exception):
@@ -185,13 +191,27 @@ def configs(root):
     return found
 
 
-def section_names(files):
+def section_names(files, version=None):
     names = []
-    for text in files.values():
-        names.extend(match.group(1).strip() for match in HEADERS.finditer(text)
-                     if not match.group(1).strip().startswith('include '))
-    if len(names) != len(set(names)):
-        raise FixError('Duplicate configuration sections; resolve before applying fixes')
+    occurrences = {}
+    for path, text in files.items():
+        headers = list(HEADERS.finditer(text))
+        for index, match in enumerate(headers):
+            name = match.group(1).strip()
+            if name.startswith('include '):
+                continue
+            names.append(name)
+            end = headers[index + 1].start() if index + 1 < len(headers) else len(text)
+            block = text[match.start():end].replace('\r\n', '\n').strip()
+            occurrences.setdefault(name, []).append((path, block))
+    for name, entries in occurrences.items():
+        if len(entries) == 1:
+            continue
+        reviewed = (version == '1.6.0' and name == 'resonance_tester'
+                    and len(entries) == 2 and entries[0][0] == entries[1][0]
+                    and tuple(item[1] for item in entries) == LEGACY_RESONANCE_SECTIONS)
+        if not reviewed:
+            raise FixError('Duplicate configuration sections; resolve before applying fixes')
     return names
 
 
@@ -291,8 +311,8 @@ class Fixes:
         if Path('/dev_info.txt').read_text().strip() != release['device_marker'] or os.uname().machine != release['architecture']:
             raise FixError('Expected the reviewed aarch64 QIDI Plus4 stock layout')
         version = self.updater.version()
-        if version not in ('1.8.2', '2.1.1'):
-            raise FixError('Fixes are reviewed only for stock Plus4 1.8.2 and 2.1.1')
+        if version not in ('1.6.0', '1.8.2', '2.1.1'):
+            raise FixError('Fixes are reviewed only for stock Plus4 1.6.0, 1.8.2 and 2.1.1')
         self.result['version'] = version
         return version
 
@@ -331,17 +351,29 @@ class Fixes:
 
     def plan(self):
         version = self.identity()
+        legacy = version == '1.6.0'
+        if legacy and (self.options['polling'] or self.options.get('box_drying')):
+            raise FixError('Box polling and drying are not supported on stock Plus4 1.6.0')
         self.quiescent()
         root = self.updater.config / 'printer.cfg'
         files = configs(root)
-        names = section_names(files)
+        names = section_names(files, version)
+        if legacy:
+            box_sections = re.compile(r'^(?:box_\w+|mcu mcu_box[1-4]|heater_generic heater_box[1-4]|filament_motion_sensor box_motion_sensor[1-4]?)$')
+            extras = self.updater.home / 'klipper/klippy/extras'
+            if (any(box_sections.fullmatch(name) for name in names)
+                    or any(extras.glob('box_extras.*'))
+                    or any(name.startswith('mcu mcu_box') for name in self.updater.idle())):
+                raise FixError('Stock 1.6.0 support requires a printer without QIDI Box additions')
         # Ensure the existing stock recovery command will use the hardened wrapper.
         text = '\n'.join(files.values())
         shell = re.search(r'^\s*\[gcode_shell_command POWER_LOSS_RESUME\]([^\[]*)', text, re.M)
-        if not shell or not re.search(r'^\s*command\s*[:=]\s*bash /home/mks/scripts/plr/plr.sh\s*$', shell.group(1), re.M):
+        if not legacy and (not shell or not re.search(r'^\s*command\s*[:=]\s*bash /home/mks/scripts/plr/plr.sh\s*$', shell.group(1), re.M)):
             raise FixError('POWER_LOSS_RESUME must use the reviewed stock PLR wrapper')
         desired = {}
-        sections = ['box_output_clock_guard']
+        sections = [] if legacy else ['box_output_clock_guard']
+        if legacy:
+            self.result['notes'].append('1.6.0: Box fixes and PLR hardening skipped; base recovery entrypoint is not reviewed')
         variable_sources = {}
         if self.options.get('fast_variable_saves'):
             if 'save_variables' not in names:
@@ -374,7 +406,7 @@ class Fixes:
             sections.append('box_drying')
         if version == '1.8.2':
             sections.append('box_status_compat')
-        else:
+        elif not legacy:
             self.result['notes'].append('2.1.1 status-shim need is unproven; existing shim retained, no new shim installed')
         for section in sections:
             target = self.updater.home / 'klipper/klippy/extras' / (section + '.py')
@@ -390,7 +422,9 @@ class Fixes:
                 self.result['notes'].extend(notes)
             if not probe_sections:
                 self.result['notes'].append('Probing speed skipped: no reviewed tilt/mesh sections')
-        if self.options.get('trim_runout_waits'):
+        if legacy and self.options.get('trim_runout_waits'):
+            self.result['notes'].append('Runout waits skipped: stock 1.6.0 has no reviewed Box runout loop')
+        elif self.options.get('trim_runout_waits'):
             for path in list(files):
                 if 'gcode_macro PRINT_START' not in section_names({path: files[path]}):
                     continue
@@ -430,7 +464,7 @@ class Fixes:
             desired.update((path, text.encode('utf-8')) for path, text in LOG_FILES.items())
         else:
             self.result['notes'].append('Log limits skipped: small Armbian ramlog/archive layout not detected')
-        plr = self.plr()
+        plr = dict(changed=False, actions=[], backup_manifest=None) if legacy else self.plr()
         tracked = set(desired)
         tracked.update(item['path'] for item in plr['actions'] if item['role'] != 'scripts-directory-ownership')
         before = dict((path, snapshot(path)) for path in sorted(tracked))
@@ -538,7 +572,8 @@ class Fixes:
         while time.monotonic() < deadline:
             try:
                 self.updater.idle()
-                names = list(plan['controllers']) + (['box_output_clock_guard'] if guards else [])
+                box_guard = guards and plan.get('version') != '1.6.0'
+                names = list(plan['controllers']) + (['box_output_clock_guard'] if box_guard else [])
                 status = self.updater.api('/printer/objects/query?' + '&'.join(
                     urllib.parse.quote(name, safe='') for name in names))['status']
                 for name in plan['controllers']:
@@ -550,6 +585,8 @@ class Fixes:
                         expected_box = 'active' if plan.get('variable_box') else 'absent'
                         if saved.get('active') is not True or saved.get('box_hook') != expected_box or saved.get('errors') != 0:
                             raise FixError('Fast variable-save hooks did not activate')
+                        if plan.get('version') == '1.6.0' and saved.get('profile') != 'legacy-1.6.0':
+                            raise FixError('Legacy variable-save profile did not activate')
                     if plan.get('probe_sections'):
                         settings = self.updater.api('/printer/objects/query?configfile')['status']['configfile']['settings']
                         if any(float(settings.get(name, {}).get('speed', 0)) != 300 for name in plan['probe_sections']):
@@ -570,13 +607,13 @@ class Fixes:
                     if plan.get('usb') and any(self.updater.service_state(unit) != 'active' for unit in (USB_SOCKET, USB_SERVICE)):
                         raise FixError('USB evidence services did not activate')
                     guard = status.get('box_output_clock_guard', {})
-                    if any(name.startswith('mcu mcu_box') for name in plan['controllers']):
+                    if box_guard and any(name.startswith('mcu mcu_box') for name in plan['controllers']):
                         outputs = guard.get('outputs', {})
                         if guard.get('state') not in ('corrected', 'already-correct') or guard.get('reload_all_guarded') is not True or set(outputs) != {'b_output', 'e_output'}:
                             raise FixError('Box output guard did not activate')
                         if any(item.get('state') not in ('corrected', 'already-correct') or not item.get('pin_mcu', '').startswith('mcu_box') for item in outputs.values()):
                             raise FixError('Box output ownership could not be verified')
-                    elif guard.get('state') != 'inactive-no-box':
+                    elif box_guard and guard.get('state') != 'inactive-no-box':
                         raise FixError('Unexpected guard state on a printer without a Box')
                     if self.result['version'] == '1.8.2':
                         shim = self.updater.api('/printer/objects/query?box_status_compat')['status'].get('box_status_compat', {})

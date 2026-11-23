@@ -96,6 +96,169 @@ timeout: 120
         self.fix.result['version'] = self.updater.version()
         return self.fix.result['version']
 
+    def legacy_configuration(self):
+        self.updater.version.return_value = '1.6.0'
+        self.updater.idle.return_value = ['mcu']
+        fixtures = HELPER.parent / 'tests/fixtures'
+        self.printer.write_bytes((fixtures / 'qidi_1_6_0_printer.cfg').read_bytes())
+        (self.config / 'gcode_macro.cfg').write_bytes((fixtures / 'qidi_1_6_0_gcode_macro.cfg').read_bytes())
+        # Base-image includes are absent from the update archive. Their bytes
+        # must be retained; 1.6.0 maintenance does not claim to harden PLR.
+        for name in ('plr.cfg', 'time_update.cfg', 'timelapse.cfg', 'KAMP_Settings.cfg'):
+            (self.config / name).write_text('# synthetic base-image include\n')
+        (self.home / 'klipper/klippy/extras/save_variables.py').write_bytes(
+            (fixtures / 'qidi_1_6_0_save_variables.py').read_bytes())
+        self.updater.api.return_value = dict(objects=['save_variables_fast'])
+
+    def test_legacy_transaction_is_idempotent_and_rolls_back_without_box_or_plr_writes(self):
+        self.legacy_configuration()
+        before = {path: path.read_bytes() for path in self.config.glob('*.cfg')}
+        saved = self.config / 'saved_variables.cfg'
+        saved.write_bytes(b'[Variables]\nlegacy_value = 17\n')
+        self.fix.options.update(fast_probing=True, fast_variable_saves=True,
+                                usb_event_log=True, trim_runout_waits=True)
+        self.fix.options['assets']['qidi-fixes/usb_events.py'] = base64.b64encode(b'# fixture writer\n').decode()
+        usb_files = {str(self.root / Path(path).name): content for path, content in fixes.USB_FILES.items()}
+        script = str(self.root / 'usb_events.py')
+        with patch.object(fixes, 'USB_FILES', usb_files), patch.object(fixes, 'USB_SCRIPT', script):
+            plan = self.prepare()
+            self.assertFalse(plan['plr_changed'])
+            self.assertEqual(plan['probe_sections'], ['bed_mesh', 'z_tilt'])
+            self.assertIsNone(plan['runout'])
+            self.fix.plr.assert_not_called()
+            self.fix.apply()
+            self.assertIn('[save_variables_fast]', self.printer.read_text())
+            self.assertNotIn('box_output_clock_guard', self.printer.read_text())
+            self.assertFalse(self.fix.plan()['changed'])
+            self.assertEqual(saved.read_bytes(), b'[Variables]\nlegacy_value = 17\n')
+            self.fix.options['rollback'] = str(self.fix.tx)
+            self.fix.rollback()
+            self.fix.plr.assert_not_called()
+            for path, content in before.items():
+                self.assertEqual(path.read_bytes(), content)
+            self.assertFalse((self.home / 'klipper/klippy/extras/save_variables_fast.py').exists())
+            self.assertFalse(Path(script).exists())
+
+    def test_legacy_rejects_unreviewed_duplicates_and_box_additions_before_prepare(self):
+        self.legacy_configuration()
+        original = self.printer.read_text()
+        for text in (original.replace('accel_per_hz: 150', 'accel_per_hz: 151'),
+                     original + '\n[resonance_tester]\naccel_chip:adxl345\n',
+                     original + '\n[extruder]\nmax_temp:300\n'):
+            self.printer.write_text(text)
+            with self.assertRaisesRegex(fixes.FixError, 'Duplicate'):
+                self.fix.plan()
+        self.printer.write_text(original)
+        # The stock exception is version-bound and cannot be split across files.
+        with self.assertRaisesRegex(fixes.FixError, 'Duplicate'):
+            fixes.section_names({self.printer: original}, '2.1.1')
+        split = self.config / 'split_resonance.cfg'
+        split.write_text(fixes.LEGACY_RESONANCE_SECTIONS[1] + '\n')
+        self.printer.write_text(original.replace(fixes.LEGACY_RESONANCE_SECTIONS[1], '', 1)
+                                + '\n[include split_resonance.cfg]\n')
+        with self.assertRaisesRegex(fixes.FixError, 'Duplicate'):
+            self.fix.plan()
+        split.unlink()
+        self.printer.write_text(original)
+        for key in ('polling', 'box_drying'):
+            self.fix.options[key] = True
+            with self.assertRaisesRegex(fixes.FixError, 'not supported'):
+                self.fix.plan()
+            self.fix.options[key] = False
+        self.printer.write_text(original + '\n[box_extras]\n')
+        with self.assertRaisesRegex(fixes.FixError, 'without QIDI Box'):
+            self.fix.plan()
+        self.printer.write_text(original)
+        binary = self.home / 'klipper/klippy/extras/box_extras.so'
+        binary.write_bytes(b'unreviewed')
+        with self.assertRaisesRegex(fixes.FixError, 'without QIDI Box'):
+            self.fix.plan()
+        binary.unlink()
+        self.updater.idle.return_value = ['mcu', 'mcu mcu_box1']
+        with self.assertRaisesRegex(fixes.FixError, 'without QIDI Box'):
+            self.fix.plan()
+        self.fix.plr.assert_not_called()
+
+    def test_legacy_crlf_config_and_calibration_tail_are_preserved(self):
+        self.legacy_configuration()
+        tail = '#*# <---------------------- SAVE_CONFIG ---------------------->\n#*# [probe]\n#*# z_offset = 0.17\n'
+        original = (self.printer.read_text() + '\n' + tail).replace('\n', '\r\n')
+        self.printer.write_bytes(original.encode())
+        self.fix.options['fast_variable_saves'] = True
+        plan = self.fix.plan()
+        edited = base64.b64decode(plan['writes'][str(self.printer)]).decode()
+        self.assertTrue(edited.endswith(tail.replace('\n', '\r\n')))
+        self.assertNotIn('\n', edited.replace('\r\n', ''))
+        self.assertLess(edited.index('[save_variables_fast]'), edited.index('SAVE_CONFIG'))
+
+    def test_legacy_firmware_change_blocks_rollback(self):
+        self.legacy_configuration()
+        self.fix.options['fast_probing'] = True
+        self.prepare()
+        self.fix.apply()
+        self.fix.options['rollback'] = str(self.fix.tx)
+        self.updater.version.return_value = '1.8.2'
+        self.fix.stop.reset_mock()
+        with self.assertRaisesRegex(fixes.FixError, 'Firmware changed'):
+            self.fix.rollback()
+        self.fix.stop.assert_not_called()
+
+    def test_legacy_source_changes_after_preparation_block_apply(self):
+        self.legacy_configuration()
+        self.fix.options['fast_variable_saves'] = True
+        self.prepare()
+        (self.home / 'klipper/klippy/extras/save_variables.py').write_text('# changed')
+        with self.assertRaisesRegex(fixes.FixError, 'Unreviewed saved-variable'):
+            self.fix.apply()
+        self.fix.stop.assert_not_called()
+
+    def test_legacy_journal_plan_still_requires_the_small_ramlog_layout(self):
+        self.legacy_configuration()
+        real_is_dir = Path.is_dir
+        log_files = {str(self.root / Path(path).name): content for path, content in fixes.LOG_FILES.items()}
+        with patch.object(Path, 'is_dir', lambda path: str(path) == '/var/log.hdd/journal' or real_is_dir(path)), \
+                patch.object(fixes, 'LOG_FILES', log_files):
+            for size, expected in ((128 * 1024 * 1024, True), (129 * 1024 * 1024, False)):
+                with patch.object(fixes.os, 'statvfs', return_value=Mock(f_blocks=size, f_frsize=1)):
+                    plan = self.fix.plan()
+                self.assertEqual(plan['logs'], expected)
+                self.assertEqual(any(path in plan['writes'] for path in log_files), expected)
+
+    def test_legacy_verification_uses_the_legacy_hook_without_querying_box_objects(self):
+        self.legacy_configuration()
+        self.fix.result['version'] = '1.6.0'
+        plan = dict(version='1.6.0', controllers=['mcu'], variable_sources={'source': {}}, variable_box=False)
+        for profile in ('legacy-1.6.0', 'box-era'):
+            self.fix.result['startup_verified'] = False
+            self.updater.api.side_effect = [
+                {'status': {'mcu': {'mcu_version': 'fixture'}}},
+                {'status': {'save_variables_fast': dict(active=True, box_hook='absent', profile=profile, errors=0)}},
+            ]
+            with patch.object(fixes.time, 'monotonic', side_effect=[0, 0, 6]), patch.object(fixes.time, 'sleep'):
+                if profile == 'legacy-1.6.0':
+                    self.fix.verify(plan)
+                else:
+                    with self.assertRaisesRegex(fixes.FixError, 'verification timed out'):
+                        self.fix.verify(plan)
+            self.assertEqual(self.fix.result['startup_verified'], profile == 'legacy-1.6.0')
+            self.assertNotIn('box_output_clock_guard', self.updater.api.call_args_list[-2].args[0])
+        self.updater.api.side_effect = None
+
+    def test_identity_accepts_only_reviewed_versions_and_stock_machine_identity(self):
+        from types import SimpleNamespace
+        self.fix.options['release'] = dict(device_marker='QIDI@x-plus_4', architecture='aarch64')
+        with patch.object(fixes, 'Path') as path, patch.object(fixes.os, 'uname', return_value=SimpleNamespace(machine='aarch64')):
+            path.return_value.read_text.return_value = 'QIDI@x-plus_4'
+            for version in ('1.6.0', '1.8.2', '2.1.1'):
+                self.updater.version.return_value = version
+                self.assertEqual(fixes.Fixes.identity(self.fix), version)
+            self.updater.version.return_value = '1.6.1'
+            with self.assertRaisesRegex(fixes.FixError, 'reviewed only'):
+                fixes.Fixes.identity(self.fix)
+            path.return_value.read_text.return_value = 'different-printer'
+            with self.assertRaisesRegex(fixes.FixError, 'reviewed aarch64'):
+                fixes.Fixes.identity(self.fix)
+
     def test_fast_variable_saves_install_idempotence_and_rollback_preserve_values(self):
         extras = self.home / 'klipper/klippy/extras'
         (extras / 'save_variables.py').write_bytes((HELPER.parent / 'tests/fixtures/qidi_save_variables.py').read_bytes())

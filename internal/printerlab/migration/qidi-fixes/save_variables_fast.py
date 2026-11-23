@@ -15,6 +15,11 @@ import stat
 import tempfile
 
 STOCK_SAVE_SHA256 = '0327ce54b1a7286d97b0b2fbe008ecc9a36057a5d12642fd6237552c5e77b682'
+SAVE_PROFILES = {
+    STOCK_SAVE_SHA256: 'box-era',
+    '168b64a2ae3022b7a3a6dac24fb9c0de541b152bd0cf1bbbc385b72c14cc8edf': 'legacy-1.6.0',
+    '362397ede2e1d79819b090632ab9bf11e8df80ef1b853a65f6c5a339afd057bf': 'legacy-1.6.0',
+}
 STOCK_BOX_SHA256 = {
     '1.8.2': 'fdeb7df7366e7712d9a74e46267f28781c44680f9c00da954b051fa7cb652d4c',
     '2.1.1': 'c563d1352623774ca92fd2c500ef80bcb8f0407381981fa811c7476234fcaac7',
@@ -22,9 +27,25 @@ STOCK_BOX_SHA256 = {
 NAME = re.compile(r'[A-Za-z0-9_]+\Z')
 
 
+def check_native_shadow(extras):
+    if any(name.startswith('save_variables.') and name.endswith(('.so', '.pyd'))
+           for name in os.listdir(str(extras))):
+        raise ValueError('Unreviewed native save_variables module shadows the Python source')
+
+
 def validate_sources(extras, version):
-    for filename, expected in (('save_variables.py', STOCK_SAVE_SHA256),
-                               ('box_extras.so', STOCK_BOX_SHA256[version])):
+    profile = 'legacy-1.6.0' if version == '1.6.0' else 'box-era'
+    if version not in ('1.6.0', '1.8.2', '2.1.1'):
+        raise ValueError('Unreviewed saved-variable firmware version')
+    check_native_shadow(extras)
+    with open(os.path.join(str(extras), 'save_variables.py'), 'rb') as stream:
+        if SAVE_PROFILES.get(hashlib.sha256(stream.read()).hexdigest()) != profile:
+            raise ValueError('Unreviewed saved-variable source: save_variables.py')
+    if version == '1.6.0':
+        if any(name.startswith('box_extras.') for name in os.listdir(str(extras))):
+            raise ValueError('Unreviewed Box additions on firmware 1.6.0')
+        return
+    for filename, expected in (('box_extras.so', STOCK_BOX_SHA256[version]),):
         path = os.path.join(str(extras), filename)
         if filename == 'box_extras.so' and not os.path.exists(path):
             continue
@@ -69,21 +90,31 @@ class SaveVariablesFast:
         self.active = False
         self.box_hook = 'absent'
         self.vendor = None
+        self.profile = None
         self.printer.register_event_handler('klippy:connect', self.connect)
 
     def connect(self):
         # Fail startup instead of claiming to optimize a different implementation.
         extras = os.path.dirname(__file__)
+        try:
+            check_native_shadow(extras)
+        except ValueError as exc:
+            raise self.printer.config_error(str(exc))
         with open(os.path.join(extras, 'save_variables.py'), 'rb') as stream:
-            if hashlib.sha256(stream.read()).hexdigest() != STOCK_SAVE_SHA256:
+            self.profile = SAVE_PROFILES.get(hashlib.sha256(stream.read()).hexdigest())
+            if self.profile is None:
                 raise self.printer.config_error('Unreviewed save_variables implementation')
         binary = os.path.join(extras, 'box_extras.so')
+        if self.profile == 'legacy-1.6.0' and any(name.startswith('box_extras.') for name in os.listdir(extras)):
+            raise self.printer.config_error('Unreviewed Box additions on firmware 1.6.0')
         if os.path.exists(binary):
             with open(binary, 'rb') as stream:
-                if hashlib.sha256(stream.read()).hexdigest() not in STOCK_BOX_SHA256.values():
+                if self.profile == 'legacy-1.6.0' or hashlib.sha256(stream.read()).hexdigest() not in STOCK_BOX_SHA256.values():
                     raise self.printer.config_error('Unreviewed Box saved-variable implementation')
         owner = self.printer.lookup_object('box_extras', None)
         if owner is not None:
+            if self.profile == 'legacy-1.6.0':
+                raise self.printer.config_error('Box hooks are not reviewed for firmware 1.6.0')
             if getattr(owner, 'save_variables', None) is not self.save_vars:
                 raise self.printer.config_error('Unrecognized Box variable store')
             original = owner.save_variable
@@ -114,7 +145,7 @@ class SaveVariablesFast:
             saved = {key: ast.literal_eval(text) for key, text in parser.items('Variables')}
             unchanged = repr(saved) == repr(self.save_vars.allVariables)
             if unchanged:
-                for key, default in self.save_vars.default_values.items():
+                for key, default in (self.save_vars.default_values if self.profile == 'box-era' else {}).items():
                     setattr(self.save_vars, key, saved.get(key, default))
                 self.skipped += 1
                 return True
@@ -132,7 +163,7 @@ class SaveVariablesFast:
             logging.exception('Unable to durably save variable')
             raise error('Unable to durably save variable')
         self.save_vars.allVariables = saved
-        for key, default in self.save_vars.default_values.items():
+        for key, default in (self.save_vars.default_values if self.profile == 'box-era' else {}).items():
             setattr(self.save_vars, key, saved.get(key, default))
         self.writes += 1
         return True
@@ -154,7 +185,7 @@ class SaveVariablesFast:
             return original(varname, value)
 
     def get_status(self, eventtime):
-        return dict(active=self.active, box_hook=self.box_hook, writes=self.writes,
+        return dict(active=self.active, box_hook=self.box_hook, profile=self.profile, writes=self.writes,
                     skipped=self.skipped, fallbacks=self.fallbacks, errors=self.errors)
 
 

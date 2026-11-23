@@ -42,15 +42,18 @@ class Command:
         return self.params[name]
 
 
-class SavesTests(unittest.TestCase):
+class SavesFixture(unittest.TestCase):
+    stock_path = STOCK
+    with_box = True
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         shutil.copyfile(SOURCE, self.root / SOURCE.name)
-        shutil.copyfile(STOCK, self.root / 'save_variables.py')
+        shutil.copyfile(self.stock_path, self.root / 'save_variables.py')
         self.fast = load(self.root / SOURCE.name, 'fast_saves_fixture')
-        self.stock = load(STOCK, 'stock_saves_fixture')
+        self.stock = load(self.stock_path, 'stock_saves_fixture')
         self.path = self.root / 'saved.cfg'
         self.path.write_text('[Variables]\nbox_count = 1\nrunout_0 = 0\n')
         self.gcode = Gcode()
@@ -65,13 +68,16 @@ class SavesTests(unittest.TestCase):
         self.objects['save_variables'] = self.sv
         self.box = SimpleNamespace(save_variables=self.sv,
             save_variable=lambda varname, value: self.stock.SaveVariables.cmd_SAVE_VARIABLE(self.sv, Command(varname, repr(value))))
-        self.objects['box_extras'] = self.box
+        if self.with_box:
+            self.objects['box_extras'] = self.box
         self.extension = self.fast.load_config(self.config)
         self.extension.connect()
 
     def invoke(self, name, text):
         self.gcode.commands['SAVE_VARIABLE'](Command(name, text))
 
+
+class SavesTests(SavesFixture):
     def test_install_and_no_op_leave_disk_and_saved_objects_intact(self):
         before = self.path.read_bytes(), self.path.stat().st_mtime_ns
         current = self.sv.allVariables
@@ -81,7 +87,7 @@ class SavesTests(unittest.TestCase):
         self.box.save_variable(varname='box_count', value=1)
         self.assertEqual((self.path.read_bytes(), self.path.stat().st_mtime_ns), before)
         self.assertIs(self.sv.allVariables, current)
-        self.assertEqual(self.extension.get_status(0), dict(active=True, box_hook='active', writes=0, skipped=2, fallbacks=0, errors=0))
+        self.assertEqual(self.extension.get_status(0), dict(active=True, box_hook='active', profile='box-era', writes=0, skipped=2, fallbacks=0, errors=0))
 
     def test_changed_values_match_stock_file_status_case_collisions_and_defaults(self):
         for box, name, text in ((False, 'runout_0', '1'), (True, 'nested', "{'x': [1, True, None, (2, 3)]}"),
@@ -177,6 +183,73 @@ class SavesTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unreviewed'):
             self.fast.validate_sources(self.root, '2.1.1')
         ast.parse(SOURCE.read_text(), feature_version=(3, 7))
+
+
+class LegacySavesTests(SavesFixture):
+    stock_path = HERE / 'fixtures/qidi_1_6_0_save_variables.py'
+    with_box = False
+
+    def test_legacy_no_op_and_changed_writes_match_vendor_without_default_attributes(self):
+        self.assertFalse(hasattr(self.sv, 'default_values'))
+        before = self.path.read_bytes(), self.path.stat().st_mtime_ns
+        self.invoke('runout_0', '0')
+        self.assertEqual((self.path.read_bytes(), self.path.stat().st_mtime_ns), before)
+        self.assertEqual(self.extension.get_status(0)['profile'], 'legacy-1.6.0')
+        self.assertEqual(self.extension.box_hook, 'absent')
+        for name, value in [('nested', "{'a': [1, True, None]}"), ('UPPER', '2'), ('negative', '-0.0')]:
+            before = self.path.read_bytes()
+            self.invoke(name, value)
+            expected = self.path.read_bytes(), repr(self.sv.get_status(0))
+            self.path.write_bytes(before)
+            self.sv.loadVariables()
+            self.stock.SaveVariables.cmd_SAVE_VARIABLE(self.sv, Command(name, value))
+            self.assertEqual((self.path.read_bytes(), repr(self.sv.get_status(0))), expected)
+
+    def test_legacy_direct_section_writer_remains_vendor_owned(self):
+        self.assertIs(self.sv.save_variable.__func__, self.stock.SaveVariables.save_variable)
+        self.sv.save_variable('Other', 'setting', 'retained')
+        parser = configparser.ConfigParser()
+        parser.read(str(self.path))
+        self.assertEqual(parser.get('Other', 'setting'), 'retained')
+        self.assertEqual(self.extension.writes, 0)
+
+    def test_legacy_source_gate_binds_version_and_refuses_box_additions(self):
+        self.fast.validate_sources(self.root, '1.6.0')
+        for version in ('1.8.2', '2.1.1', '1.6.1', 'unknown'):
+            with self.assertRaises(ValueError):
+                self.fast.validate_sources(self.root, version)
+        source = self.stock_path.read_bytes()
+        (self.root / 'save_variables.py').write_bytes(source.replace(b'\n', b'\r\n'))
+        self.fast.validate_sources(self.root, '1.6.0')
+        (self.root / 'save_variables.py').write_bytes(source + b'\n# changed\n')
+        with self.assertRaisesRegex(ValueError, 'Unreviewed'):
+            self.fast.validate_sources(self.root, '1.6.0')
+        (self.root / 'save_variables.py').write_bytes(source)
+        shadow = self.root / 'save_variables.cpython-37m-aarch64-linux-gnu.so'
+        shadow.write_bytes(b'unreviewed native module')
+        with self.assertRaisesRegex(ValueError, 'native save_variables'):
+            self.fast.validate_sources(self.root, '1.6.0')
+        with self.assertRaisesRegex(ValueError, 'native save_variables'):
+            self.extension.connect()
+        shadow.unlink()
+        (self.root / 'box_extras.py').write_text('# unexpected add-on')
+        with self.assertRaisesRegex(ValueError, 'Box additions'):
+            self.fast.validate_sources(self.root, '1.6.0')
+        (self.root / 'box_extras.py').unlink()
+        self.objects['box_extras'] = self.box
+        with self.assertRaisesRegex(ValueError, 'Box hooks'):
+            self.extension.connect()
+
+    def test_legacy_io_failure_never_falls_back_and_unchanged_saves_do_not_fsync(self):
+        with patch.object(self.fast.os, 'fsync', side_effect=AssertionError('unexpected IO')):
+            self.invoke('runout_0', '0')
+        before = self.path.read_bytes()
+        with patch.object(self.fast.os, 'replace', side_effect=OSError('fixture IO failure')):
+            with self.assertRaisesRegex(ValueError, 'durably save'):
+                self.invoke('runout_0', '1')
+        self.assertEqual(self.path.read_bytes(), before)
+        self.assertEqual(self.extension.fallbacks, 0)
+        self.assertFalse(list(self.root.glob('.hlab-variables-*')))
 
 
 if __name__ == '__main__':

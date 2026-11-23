@@ -25,6 +25,30 @@ func fixesReceipt(status string) QIDIFixesResult {
 	return r
 }
 
+func TestFixesLegacyReceiptsAreScopedToNonBoxMaintenance(t *testing.T) {
+	for _, status := range []string{"checked", "prepared", "applied", "rolled_back", "unchanged"} {
+		r := fixesReceipt(status)
+		r.Version = "1.6.0"
+		r.FastVariableSaves, r.FastProbing, r.USBEventLog = true, true, true
+		raw, _ := json.Marshal(r)
+		if _, err := ParseQIDIFixes(raw); err != nil {
+			t.Fatalf("legacy %s: %v", status, err)
+		}
+		for _, mode := range []string{"polling", "drying", "unknown-version"} {
+			bad := r
+			bad.Polling = mode == "polling"
+			bad.BoxDrying = mode == "drying"
+			if mode == "unknown-version" {
+				bad.Version = "1.6.1"
+			}
+			raw, _ := json.Marshal(bad)
+			if _, err := ParseQIDIFixes(raw); err == nil {
+				t.Fatalf("accepted legacy %s with %s", status, mode)
+			}
+		}
+	}
+}
+
 func TestFixesVerifiesDesktopBackupBeforeApply(t *testing.T) {
 	for _, corrupt := range []bool{false, true} {
 		b := nativeTestBackend(t)

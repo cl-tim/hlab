@@ -21,3 +21,4 @@ Makefile text eol=lf
 
 # Preserve reviewed vendor bytes: the source gate fingerprints CRLF too.
 /internal/printerlab/migration/tools/migration/tests/fixtures/qidi_save_variables.py -text whitespace=-blank-at-eol
+/internal/printerlab/migration/tools/migration/tests/fixtures/qidi_1_6_0_* -text -whitespace

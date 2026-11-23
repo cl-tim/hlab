@@ -67,8 +67,11 @@ func ParseQIDIFixes(raw []byte) (QIDIFixesResult, error) {
 		}
 		return result, nil
 	}
-	if (result.Version != "1.8.2" && result.Version != "2.1.1") || result.Error != "" {
+	if (result.Version != "1.6.0" && result.Version != "1.8.2" && result.Version != "2.1.1") || result.Error != "" {
 		return result, fmt.Errorf("unsupported fixes version or contradictory success")
+	}
+	if result.Version == "1.6.0" && (result.Polling || result.BoxDrying) {
+		return result, fmt.Errorf("Box fixes are not supported on stock Plus4 1.6.0")
 	}
 	switch result.Status {
 	case "checked":
