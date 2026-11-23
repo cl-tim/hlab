@@ -312,6 +312,7 @@ func (c *Client) manifest() (map[string]string, error) {
 	}
 	values := map[string]string{}
 	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+		line = strings.TrimSuffix(line, "\r")
 		if line == "" {
 			continue
 		}

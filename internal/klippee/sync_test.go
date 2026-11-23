@@ -44,6 +44,52 @@ func desired(w http.ResponseWriter, revision, content string) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"version": map[string]any{"version_number": 2, "revision": revision, "source": "pending", "files": []File{{Path: "printer.cfg", Content: content, Role: "main"}}}})
 }
 
+func TestApplyIfCleanReadsCRLFBaseline(t *testing.T) {
+	original := "[include macros/print.cfg]\n[printer]\nmax_velocity: 200\n"
+	updated := strings.Replace(original, "200", "300", 1)
+	macro := "[gcode_macro PRINT]\ngcode: M400\n"
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "status.txt") {
+			io.WriteString(w, "printer_name=Fixture\n")
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"version": map[string]any{
+			"version_number": 2, "revision": "new-revision", "source": "printer",
+			"files": []File{{Path: "printer.cfg", Content: updated}, {Path: "macros/print.cfg", Content: macro}},
+		}})
+	})
+	writeFile(t, c.Config.ConfigDir, "printer.cfg", original)
+	writeFile(t, c.Config.ConfigDir, "macros/print.cfg", macro)
+	writeFile(t, c.Config.ConfigDir, "orca-profile.json", "local preset\n")
+	writeFile(t, c.Config.ConfigDir, ".klippee/last-sync", "schema=1\r\nrepository_id=repo\r\nrevision=old-revision\r\n")
+	writeFile(t, c.Config.ConfigDir, ".klippee/last-sync-files",
+		checksum([]byte(macro))+"|macros/print.cfg\r\n"+checksum([]byte(original))+"|printer.cfg\r\n")
+	if err := c.Apply(context.Background(), false, true, ""); err != nil {
+		t.Fatal(err)
+	}
+	for name, expected := range map[string]string{"printer.cfg": updated, "macros/print.cfg": macro, "orca-profile.json": "local preset\n"} {
+		data, err := os.ReadFile(filepath.Join(c.Config.ConfigDir, name))
+		if err != nil || string(data) != expected {
+			t.Fatalf("unexpected %s after sync: %v", name, err)
+		}
+	}
+	if changes, err := c.localChanges(); err != nil || len(changes) != 0 {
+		t.Fatalf("new baseline does not match applied files: %v %v", changes, err)
+	}
+}
+
+func TestManifestCRLFDoesNotAllowUnsafePathsOrDuplicates(t *testing.T) {
+	for _, path := range []string{"../outside.cfg", "macros/injected\rname.cfg", "printer.cfg|extra", "printer.cfg\r", "saved_variables.cfg", "duplicate.cfg"} {
+		t.Run(strings.ReplaceAll(path, "\r", "CR"), func(t *testing.T) {
+			c := &Client{Config: Config{ConfigDir: t.TempDir()}}
+			writeFile(t, c.Config.ConfigDir, ".klippee/last-sync-files", "digest|"+path+"\r\ndigest|duplicate.cfg\r\n")
+			if _, err := c.manifest(); err == nil {
+				t.Fatal("accepted an unsafe or duplicate baseline entry")
+			}
+		})
+	}
+}
+
 func TestApplyRevalidatesBeforeAnyMutation(t *testing.T) {
 	calls := 0
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
