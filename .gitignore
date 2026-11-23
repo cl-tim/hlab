@@ -36,6 +36,7 @@ go.work.sum
 # ---------------------------------------------------------------------------
 /bin/
 /dist/
+/site/
 
 # hlab keeps its config, key and state under the user's home directory (see
 # `hlab config home`), so none of this should ever appear here. These patterns

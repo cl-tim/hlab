@@ -1,0 +1,51 @@
+site_name: hlab documentation
+site_url: https://cl-tim.github.io/hlab/
+repo_url: https://github.com/cl-tim/hlab
+edit_uri: edit/main/docs/
+
+extra_css:
+  - assets/css/mobile-nav-accessibility.css
+
+extra_javascript:
+  - assets/js/mobile-nav-accessibility.js
+
+docs_dir: docs
+site_dir: site
+strict: true
+exclude_docs: |
+  /klippee.md
+  /plus4-box-heater-refresh.md
+
+validation:
+  nav:
+    omitted_files: warn
+    not_found: warn
+    absolute_links: warn
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: warn
+    unrecognized_links: warn
+
+theme:
+  name: readthedocs
+  highlightjs: false
+
+plugins:
+  - search
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guides:
+      - QIDI Plus4 printer: guides/qidi-plus4.md
+      - Klippee configuration sync: guides/klippee.md
+  - Reference:
+      - Printer commands: reference/printers.md
+      - Firmware migration: reference/firmware.md
+  - Operations:
+      - Stock QIDI fixes: reference/stock-fixes.md
+      - Stock QIDI updates and recovery: reference/stock-updates.md
+  - Research:
+      - Box heater refresh review: research/plus4-box-heater-refresh.md
+  - Development: development.md

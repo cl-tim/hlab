@@ -37,15 +37,19 @@ needs cgo, which is unavailable on this machine, so it cannot be run here.
 The repository is public, so GitHub Actions costs nothing; it was absent only
 while the repo was private.
 
-- `.github/workflows/build.yml` runs on every push to `main` and on pull
-  requests: gofmt, `go vet`, `go test -race`, and the cross-compile sweep. It
-  is the only place the race detector runs.
+- `.github/workflows/build.yml` runs on pushes to `main` and pull requests
+  that include code changes: gofmt, `go vet`, `go test -race`, and the
+  cross-compile sweep. Docs-only changes are filtered out.
+- `.github/workflows/docs.yml` handles docs-only changes with a strict MkDocs
+  build and deploys Pages after main-branch pushes. It shares a non-canceling
+  concurrency group with `build.yml`, so code CI and docs deployments run one
+  at a time.
 - `.github/workflows/release.yml` runs when a `v*` tag is pushed: it tests,
   builds every platform with the tag as the version, writes `SHA256SUMS`, and
   publishes a GitHub release. To release: `git tag v0.1.0 && git push origin
   v0.1.0`.
 
-CI runs after the push, so it reports a break rather than preventing one.
+Code CI runs after the push, so it reports a break rather than preventing one.
 Still run `go vet` and `go test` locally before pushing.
 
 ## Architecture
