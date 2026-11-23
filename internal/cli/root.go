@@ -139,6 +139,7 @@ func NewRootCmd(stdin io.Reader, stdout, stderr io.Writer) *cobra.Command {
 		newCheckCmd(a),
 		newSecretCmd(a),
 		newDNSCmd(a),
+		newTLSCmd(a),
 	)
 
 	return root

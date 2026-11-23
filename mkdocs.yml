@@ -46,6 +46,7 @@ nav:
       - Updates and reboots: linux/updates.md
       - Network configuration: linux/network.md
       - DNS publishing: linux/dns.md
+      - Private CA and HTTPS: linux/tls.md
       - Compose stacks: linux/stacks.md
       - Stack secrets: linux/secrets.md
       - Backups and recovery: linux/backups.md

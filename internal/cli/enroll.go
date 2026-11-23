@@ -62,6 +62,8 @@ func newEnrollCmd(a *app) *cobra.Command {
 			"account, or by recording credentials you already have (which changes\n" +
 			"nothing on the machine). Either way it connects and confirms the access\n" +
 			"works before recording anything.\n\n" +
+			"When tls.trustOnEnroll is enabled, the pinned internal CA is installed\n" +
+			"into the machine's system trust store after enrollment.\n\n" +
 			"Credentials you type are used for that connection only and are never\n" +
 			"written anywhere.",
 		Example: "  hlab enroll\n" +
@@ -313,6 +315,10 @@ func (a *app) runEnrollment(ctx context.Context, candidates []candidate, opts *e
 				}
 			} else {
 				fmt.Fprintf(a.errOut, "  recorded in %s\n", a.configWritePath())
+				if err := a.trustEnrolledHost(ctx, outcome.Name); err != nil {
+					failed++
+					fmt.Fprintf(a.errOut, "  enrolled %s, but CA trust installation failed: %v\n", outcome.Name, err)
+				}
 				if opts.syncAfter {
 					if err := a.syncEnrolledHost(ctx, outcome.Name); err != nil {
 						syncFailed++

@@ -16,6 +16,8 @@ func TestHelpIncludesDocumentationLinks(t *testing.T) {
 	}{
 		{name: "root", args: []string{"--help"}, url: clikit.HlabDocsURL},
 		{name: "host command", args: []string{"run", "--help"}, url: clikit.HlabDocsURL},
+		{name: "TLS", args: []string{"tls", "--help"}, url: clikit.HlabDocsURL},
+		{name: "TLS signing", args: []string{"tls", "sign", "--help"}, url: clikit.HlabDocsURL},
 		{name: "printer", args: []string{"printer", "--help"}, url: clikit.PrinterDocsURL},
 		{name: "nested printer command", args: []string{"printer", "firmware", "--help"}, url: clikit.PrinterDocsURL},
 		{name: "klippee", args: []string{"klippee", "--help"}, url: clikit.KlippeeDocsURL},

@@ -14,6 +14,7 @@ Use the task pages below for a focused workflow:
 - [Package and container updates, and reboots](updates.md)
 - [Network configuration and rollback](network.md)
 - [DNS publishing to Technitium](dns.md)
+- [Private CA, HTTPS and trust stores](tls.md)
 - [Compose stacks and adoption](stacks.md)
 - [Stack credentials and secrets](secrets.md)
 - [Backups and recovery](backups.md)

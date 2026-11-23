@@ -16,6 +16,7 @@ import (
 	"github.com/cl-tim/hlab/internal/cfgkit"
 	"github.com/cl-tim/hlab/internal/health"
 	"github.com/cl-tim/hlab/internal/inventory"
+	"github.com/cl-tim/hlab/internal/tlsmgr"
 )
 
 // EnvConfigPath overrides the config file location.
@@ -57,6 +58,7 @@ func (e hostEntry) resolve() inventory.Host {
 
 // File is the on-disk shape of the config file.
 type File struct {
+	TLS       *tlsmgr.Config               `yaml:"tls,omitempty"`
 	Ignored   []string                     `yaml:"ignored,omitempty"`
 	Endpoints map[string][]health.Endpoint `yaml:"endpoints,omitempty"`
 	Defaults  Defaults                     `yaml:"defaults"`
@@ -88,6 +90,7 @@ type LegacyDiscoveredHost struct {
 
 // Config is a loaded, validated configuration.
 type Config struct {
+	TLS     *tlsmgr.Config
 	Ignored []string
 	// Path is where the config was read from, or "" if defaults were used.
 	Path      string
@@ -151,6 +154,7 @@ func Load(path string) (*Config, error) {
 	cfg.Inventory = inv
 	cfg.Endpoints = file.Endpoints
 	cfg.Ignored = file.Ignored
+	cfg.TLS = file.TLS
 
 	return cfg, nil
 }
