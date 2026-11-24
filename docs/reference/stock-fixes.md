@@ -171,7 +171,9 @@ upgrades and fixes share a lock and must not run concurrently. Firmware updates
 do not apply these optional maintenance changes automatically; run `fixes`
 after an upgrade to check them again.
 
-References: [2.1.1 live findings](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/firmware/FIRMWARE-2.1.1-LIVE-REVIEW.md),
+References: [Plus4-Grease](https://github.com/JarvisAKF/Plus4-Grease)
+(reference for runout-delay removal, persistent USB logging, probing speeds and Box drying),
+[2.1.1 live findings](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/firmware/FIRMWARE-2.1.1-LIVE-REVIEW.md),
 [PLR repair](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/fixes/PLR-TIMER-TOO-CLOSE.md),
 [clock guard](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/fixes/QIDI-BOX-OUTPUT-CLOCK-GUARD.md),
 [log limits](https://github.com/timo-quinn/qidi-plus4-firmware/blob/main/docs/fixes/INSTALL-LOG-AND-BOX-FIXES.md).
