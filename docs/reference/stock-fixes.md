@@ -175,7 +175,101 @@ that changes reviewed source fingerprints requires a new compatibility review.
 The [Box heater refresh review](../research/plus4-box-heater-refresh.md) records
 why heater refresh and sensor shutdown handling remain separate candidates.
 
-#### Undo fixes
+## Homing timeouts and recovery-screen loops
+
+`Communication timeout during homing` means a homing communication deadline was
+missed. It does not identify the failed controller or establish a USB fault by
+itself. Compare the nearby controller statistics, host load and logs before
+changing probe timeouts or replacing hardware. A printer returning to ready
+also does not prove that the interrupted homing operation succeeded.
+
+The recovery-screen and checkpoint-startup fixes were added in
+[9cffc01](https://github.com/cl-tim/hlab/commit/9cffc01a2540cfb5c1c0447efc9bb18cc1fcfdfa).
+Update an older hlab binary before checking or applying them. See
+[installation and source builds](../getting-started.md#install).
+The checkpoint and screen-recovery workflow below applies to stock 1.8.2/2.1.1;
+stock 1.6.0 supports the host logging fixes only, as shown in the support table.
+
+### Preserve and inspect evidence
+
+Before restarting services or applying log cleanup, retain recent printer logs
+privately. The maintenance transaction backs up configuration and installed
+files; it does not preserve every log that retention cleanup may expire.
+
+In the printer's SSH session, these read-only commands inspect the relevant
+signals without loading entire large logs:
+
+```sh
+df -h /var/log
+sudo dmesg | tail -50
+tail -n 2000 /home/mks/printer_data/logs/klippy.log | grep -E 'Communication timeout during homing|PLR checkpoint .*failed|CheckpointError'
+tail -n 500 /home/mks/printer_data/logs/moonraker.log | grep -a 'EVENT LOOP BLOCKED'
+tail -n 200 /home/mks/printer_data/logs/qidi.log | grep -a 'page_to : page_id = 56'
+```
+
+Look for these patterns together:
+
+| Evidence | Interpretation |
+| --- | --- |
+| Many recovery-page transitions per second in `qidi.log`, alongside repeated screen messages in `syslog` and `daemon.log` | The screen client may be stuck in its recovery-page loop and adding host load. |
+| A full `/var/log` and journald `No space left on device` messages | The small ramlog filesystem is exhausted; kernel history may already have been overwritten by the error flood. |
+| Moonraker `EVENT LOOP BLOCKED` near startup | Moonraker was delayed; correlate this with Klipper timing rather than treating it as proof of an MCU disconnect. |
+| `checkpoint heaters.extruder is outside 150..400` during cold startup | An older checkpoint runtime treated the cold target as an error instead of deferring recovery snapshots. |
+| `checkpoint writer did not flush` on a later print | An older runtime can retain an earlier writer error across prints; this message alone does not prove a new storage timeout. |
+
+An absence of recorded USB disconnects is inconclusive when logging was full or
+the persistent recorder was not active. Preserve controller retransmit and
+invalid-byte counters around the failure where available. Checkpoints remain
+non-resumable during cold startup; a saved recovery-screen flag is not proof
+that a valid checkpoint exists.
+
+### Apply and verify
+
+Exit SSH and run the following **on your computer**, substituting the printer's
+address. The existing ready/idle, heater-target and backup checks still apply:
+
+```sh
+./hlab printer firmware fixes --target 192.168.1.50 --usb-event-log --check
+./hlab printer firmware fixes --target 192.168.1.50 --usb-event-log -y -o json
+./hlab printer firmware fixes --target 192.168.1.50 --usb-event-log --check -o json
+```
+
+For a saved printer, its name can replace `--target 192.168.1.50`.
+Keep the same optional fix flags on the follow-up check. A successful apply
+reports `applied` or `unchanged` with `startup_verified: true`; a subsequent check
+should have an empty `changes` list. Check mode itself does not restart or verify
+startup, so its `startup_verified: false` is expected.
+
+The default fixes include checkpoint repair, ramlog limits and recovery-screen
+loop detection. `--usb-event-log` additionally installs or activates the bounded
+persistent recorder. A screen restart is planned only for an already-active
+client with the detected loop. Verification waits for fresh output from the
+new client and a three-second stable period within thirty seconds, so the old
+client's log tail is not mistaken for a continuing failure.
+
+After installation, inspect `/var/log` space again and confirm the rapid screen
+messages have stopped. The cleanup timer should be active. With USB logging
+requested, both its socket and writer should be active; an enabled socket alone
+does not prove a record has been persisted. From SSH:
+
+```sh
+df -h /var/log
+systemctl is-active qidi-journal-archive-cleanup.timer
+systemctl is-active hlab-usb-events.socket hlab-usb-events.service
+```
+
+Startup verification checks controllers and loaded fixes without running homing,
+heating or a print. Follow with supervised homing and print startup. If the
+timeout recurs, preserve the new logs and USB evidence for further diagnosis;
+the log and checkpoint fixes do not establish that every timing or hardware
+cause has been removed.
+
+If activation fails, use the returned transaction's
+[rollback command](#undo-fixes). Retain the failure receipt and backup rather
+than retrying the same installation or manually starting Klipper over a partial
+transaction. Rollback checks startup before a new plan is applied.
+
+## Undo fixes
 
 The result includes the remote recovery transaction path and desktop backup
 path. To undo that transaction, pass its exact returned path:

@@ -315,6 +315,8 @@ See the [firmware migration guide](firmware.md).
 ### Stock QIDI fixes and rollback
 
 See [stock QIDI fixes and rollback](stock-fixes.md).
+For startup communication errors, see
+[homing timeouts and recovery-screen loops](stock-fixes.md#homing-timeouts-and-recovery-screen-loops).
 
 <a id="updating-stock-qidi-firmware"></a>
 ### Updating stock QIDI firmware

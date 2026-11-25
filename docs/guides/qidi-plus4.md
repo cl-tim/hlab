@@ -125,6 +125,14 @@ The fixes address Box output timing, harden power-loss recovery and limit
 system-log space on the supported stock layout. The older Box status fix is
 added on 1.8.2 only; an existing copy is kept on 2.1.1.
 
+They also defer recovery checkpoints during cold startup, bound plain-text
+system logs and restart an already-active screen client if its recovery-page
+loop is detected. These changes were added in
+[commit 9cffc01](https://github.com/cl-tim/hlab/commit/9cffc01a2540cfb5c1c0447efc9bb18cc1fcfdfa).
+Use a build containing that commit or a later revision; an older binary's
+`--check` cannot check for fixes it does not contain. You can
+[build from current source](../getting-started.md#install) if needed.
+
 **For QIDI Box users:** the timing guard normally blocks automatic RFID-triggered
 filament insertion. Manual loading still works. See the
 [fix details](../reference/stock-fixes.md#stock-qidi-fixes) if you have explicitly enabled
@@ -147,6 +155,31 @@ hlab saves a backup, applies the fixes, restarts Klipper and checks startup.
 Keep the printed recovery path if you may want to
 [undo the fixes](../reference/stock-fixes.md#undo-fixes).
 
+## After a homing communication timeout
+
+`Communication timeout during homing` can accompany a busy host even when
+the printer returns to ready. A screen stuck on power-loss recovery can flood
+system logs; `No space left on device` and Moonraker `EVENT LOOP BLOCKED`
+messages are useful evidence. Separate checkpoint errors can disable recovery
+during cold startup. These symptoms alone do not establish a USB or cable fault.
+
+Preserve the recent logs before a restart or cleanup. Follow the
+[homing-timeout troubleshooting steps](../reference/stock-fixes.md#homing-timeouts-and-recovery-screen-loops)
+to inspect them. Once the printer is ready, idle and has all heater targets at
+zero, check and apply the fixes with persistent USB evidence enabled:
+
+```sh
+./hlab printer firmware fixes --target 192.168.1.50 --usb-event-log --check
+./hlab printer firmware fixes --target 192.168.1.50 --usb-event-log -y -o json
+./hlab printer firmware fixes --target 192.168.1.50 --usb-event-log --check -o json
+```
+
+The apply result must report `applied` or `unchanged` with
+`startup_verified: true`. The final read-only check should report `changes: []`.
+Keep the recovery backup. Startup verification does not move or heat the printer;
+verify homing and print startup under supervision before treating the timeout
+as resolved.
+
 ## If a command fails
 
 - **A check fails:** resolve the reported problem before running the command
@@ -154,6 +187,8 @@ Keep the printed recovery path if you may want to
 - **An update or installation fails or is interrupted:** keep the output and
   backups. Do not keep retrying or restart the printer to clear the error.
   Follow the [recovery instructions](../reference/stock-updates.md#recovery).
+  A failed fixes activation leaves Klipper stopped; use the exact returned
+  transaction path to [undo that fixes transaction](../reference/stock-fixes.md#undo-fixes).
 - **You cannot find a backup:** the command prints its location on your computer
   and on the printer. Default locations are in the
   [backup reference](../reference/stock-updates.md#backup-locations).
