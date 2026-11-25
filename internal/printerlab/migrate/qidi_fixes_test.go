@@ -152,7 +152,7 @@ func TestFixesForwardsAndBindsOptionalModes(t *testing.T) {
 				t.Fatalf("options lost: %v", options)
 			}
 			assets := options["assets"].(map[string]any)
-			if assets["qidi-fixes/usb_events.py"] == nil || assets["qidi-fixes/save_variables_fast.py"] == nil {
+			if assets["qidi-fixes/usb_events.py"] == nil || assets["qidi-fixes/save_variables_fast.py"] == nil || assets["qidi-fixes/log_limits.py"] == nil {
 				t.Fatal("optional writer assets not shipped to the remote transaction")
 			}
 			result := fixesReceipt("checked")

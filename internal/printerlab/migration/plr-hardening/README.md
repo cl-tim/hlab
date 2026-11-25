@@ -49,6 +49,12 @@ An authoritative checkpoint deliberately remains `state=not_ready, line=0`
 until a positive line is physically eligible and durably published.  The
 generator accepts only `state=active` with a positive line.
 
+Cold startup/probing commands defer checkpoints until the nozzle target reaches
+150 C. A later cold phase invalidates outstanding candidates without poisoning
+the writer. A failed writer can rearm for a new line-zero print only after a
+durable non-resumable reset; pause/resume and persistent IO failures remain
+fail-closed.
+
 ### Honest recovery boundary
 
 Durability can lag the live print by a lookahead interval and eMMC write time.

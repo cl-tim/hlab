@@ -10,13 +10,13 @@
       "source": "plr_checkpoint.py",
       "target": "klipper-extra",
       "mode": "0644",
-      "sha256": "2c25f9e188a8fea586535198cccd8a4323cbbc76b7016168d26267bff0643f24"
+      "sha256": "853dd2a59a7cad947ef8e95824b65828ddede5c67f5c98e801b90ce328778461"
     },
     {
       "source": "plr_checkpoint.py",
       "target": "scripts",
       "mode": "0644",
-      "sha256": "2c25f9e188a8fea586535198cccd8a4323cbbc76b7016168d26267bff0643f24"
+      "sha256": "853dd2a59a7cad947ef8e95824b65828ddede5c67f5c98e801b90ce328778461"
     },
     {
       "source": "generate_recovery.py",

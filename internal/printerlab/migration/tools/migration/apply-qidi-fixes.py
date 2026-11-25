@@ -5,6 +5,7 @@ Uses the updater's loopback API, idle/heater checks and shared firmware lock.
 The workstation verifies a recovery archive before allowing any live edits.
 """
 import base64
+import datetime
 import fcntl
 import glob
 import hashlib
@@ -22,6 +23,9 @@ import urllib.parse
 
 TRANSACTIONS = Path('/var/lib/hlab/qidi-fixes')
 TIMER = 'qidi-journal-archive-cleanup.timer'
+LOG_SERVICE = 'qidi-journal-archive-cleanup.service'
+LOG_SCRIPT = '/usr/local/lib/hlab/log_limits.py'
+SCREEN_SERVICE = 'makerbase-client.service'
 USB_SOCKET = 'hlab-usb-events.socket'
 USB_SERVICE = 'hlab-usb-events.service'
 USB_SCRIPT = '/usr/local/lib/hlab/usb_events.py'
@@ -61,6 +65,10 @@ PrivateTmp=true
 ''',
 }
 LOG_FILES = {
+    '/etc/rsyslog.d/00-hlab-screen-noise.conf': '''# The screen client also records page transitions in its own rotating qidi.log.
+# Do not duplicate its recovery-page busy loop into both syslog and daemon.log.
+if $programname == 'bash' and $msg contains '\u8df3\u8f6c\u81f3\u6062\u590d\u6253\u5370\u754c\u9762' then stop
+''',
     '/etc/systemd/journald.conf.d/zz-qidi-log-limits.conf': '''[Journal]
 SystemMaxUse=16M
 SystemKeepFree=16M
@@ -74,7 +82,7 @@ RateLimitIntervalSec=30s
 RateLimitBurst=1000
 ''',
     '/etc/systemd/system/qidi-journal-archive-cleanup.service': '''[Unit]
-Description=Bound Armbian disk journal backups before the next boot
+Description=Bound Armbian ramlogs and disk journal backups
 After=armbian-ramlog.service
 ConditionPathIsDirectory=/var/log.hdd/journal
 
@@ -82,6 +90,8 @@ ConditionPathIsDirectory=/var/log.hdd/journal
 Type=oneshot
 Nice=19
 IOSchedulingClass=idle
+ExecStart=/usr/bin/python3 -I /usr/local/lib/hlab/log_limits.py
+ExecStart=/usr/bin/journalctl --quiet --vacuum-size=12M --vacuum-files=8 --vacuum-time=7day
 ExecStart=/usr/bin/journalctl --quiet --directory=/var/log.hdd/journal --vacuum-size=12M --vacuum-files=8 --vacuum-time=7day
 ''',
     '/etc/systemd/system/qidi-journal-archive-cleanup.timer': '''[Unit]
@@ -89,8 +99,8 @@ Description=Regular cleanup of Armbian journal backups
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=15min
-AccuracySec=1min
+OnUnitActiveSec=1min
+AccuracySec=10s
 
 [Install]
 WantedBy=timers.target
@@ -349,6 +359,54 @@ class Fixes:
             raise FixError('Could not inspect journal cleanup timer')
         return process.returncode == 0
 
+    def screen_recovery_loop(self):
+        path = self.updater.home / 'printer_data/logs/qidi.log'
+        try:
+            safe_path(path)
+            if time.time() - path.stat().st_mtime > 5:
+                return False
+            with path.open('rb') as stream:
+                stream.seek(max(0, path.stat().st_size - 8192))
+                lines = stream.read(8192).split(b'\n')[1:-1]
+        except FileNotFoundError:
+            return False
+        if len(lines) < 50 or not all(b'[info]page_to : page_id = 56' in line for line in lines[-50:]):
+            return False
+        try:
+            first, last = (datetime.datetime.strptime(line[1:20].decode('ascii'), '%Y-%m-%d %H:%M:%S')
+                           for line in (lines[-50], lines[-1]))
+        except (ValueError, UnicodeError):
+            return False
+        return 0 <= (last - first).total_seconds() <= 1
+
+    def screen_log_stamp(self):
+        path = self.updater.home / 'printer_data/logs/qidi.log'
+        try:
+            metadata = safe_path(path).stat()
+        except FileNotFoundError:
+            return None
+        return metadata.st_dev, metadata.st_ino, metadata.st_size, metadata.st_mtime_ns
+
+    def verify_screen_restart(self, before):
+        deadline = time.monotonic() + 30
+        stable_since = None
+        while time.monotonic() < deadline:
+            stamp = self.screen_log_stamp()
+            # The old client can leave a very fresh flood tail while the new
+            # client spends several seconds initializing. Require new output,
+            # not merely an active process or an aging pre-restart log tail.
+            fresh = stamp is not None and 0 <= time.time() - stamp[-1] / 1e9 <= 5
+            if (self.updater.service_state(SCREEN_SERVICE) == 'active' and fresh
+                    and stamp != before and not self.screen_recovery_loop()):
+                if stable_since is None:
+                    stable_since = time.monotonic()
+                elif time.monotonic() - stable_since >= 3:
+                    return
+            else:
+                stable_since = None
+            time.sleep(1)
+        raise FixError('Recovery-screen client did not produce stable fresh output after restart')
+
     def plan(self):
         version = self.identity()
         legacy = version == '1.6.0'
@@ -462,6 +520,7 @@ class Fixes:
         logs = Path('/var/log.hdd/journal').is_dir() and logfs.f_blocks * logfs.f_frsize <= 128 * 1024 * 1024
         if logs:
             desired.update((path, text.encode('utf-8')) for path, text in LOG_FILES.items())
+            desired[LOG_SCRIPT] = base64.b64decode(self.options['assets']['qidi-fixes/log_limits.py'])
         else:
             self.result['notes'].append('Log limits skipped: small Armbian ramlog/archive layout not detected')
         plr = dict(changed=False, actions=[], backup_manifest=None) if legacy else self.plr()
@@ -477,6 +536,9 @@ class Fixes:
         activate_logs = logs and (self.updater.enabled_state(TIMER) != 'enabled' or not self.timer_active())
         if activate_logs:
             changes.append('enable ' + TIMER)
+        screen_restart = not legacy and self.updater.service_state(SCREEN_SERVICE) == 'active' and self.screen_recovery_loop()
+        if screen_restart:
+            changes.append('restart ' + SCREEN_SERVICE + ' to clear recovery-screen loop')
         if usb and (self.updater.enabled_state(USB_SOCKET) != 'enabled'
                     or any(self.updater.service_state(unit) != 'active' for unit in (USB_SOCKET, USB_SERVICE))):
             changes.append('activate ' + USB_SOCKET)
@@ -487,6 +549,7 @@ class Fixes:
         return dict(version=version, before=before, writes=writes, plr_changed=plr['changed'],
                     plr_backup=plr.get('backup_manifest'), logs=logs, activate_logs=activate_logs,
                     usb=usb, runout=runout, probe_sections=sorted(probe_sections),
+                    screen_restart=screen_restart,
                     drying_metadata=drying_metadata, variable_sources=variable_sources, variable_box='box_extras' in names, changed=bool(changes), controllers=self.updater.idle())
 
     def save(self):
@@ -635,8 +698,14 @@ class Fixes:
     def activate_logs(self, plan):
         if plan['logs']:
             self.updater_command(['systemctl', 'daemon-reload'])
+            # Free plain-log space before restarting a journal that may be
+            # unable to open its own files on the full ramlog filesystem.
+            self.updater_command(['/usr/bin/python3', '-I', LOG_SCRIPT])
+            self.updater_command(['rsyslogd', '-N1'])
+            self.updater_command(['systemctl', 'restart', 'rsyslog.service'])
             self.updater_command(['systemctl', 'restart', 'systemd-journald'])
             self.updater_command(['systemctl', 'enable', '--now', TIMER])
+            self.updater_command(['systemctl', 'start', LOG_SERVICE])
             if self.updater.service_state(TIMER) != 'active' or self.updater.service_state('systemd-journald') != 'active':
                 raise FixError('Journal services did not activate')
         if plan.get('usb'):
@@ -683,6 +752,11 @@ class Fixes:
         self.activate_logs(plan)
         self.updater_command(['systemctl', 'start', 'klipper.service'])
         self.verify(plan)
+        if plan.get('screen_restart'):
+            self.updater.idle()
+            before = self.screen_log_stamp()
+            self.updater_command(['systemctl', 'restart', SCREEN_SERVICE])
+            self.verify_screen_restart(before)
         if self.manifest['agent_active']:
             self.updater.user_systemctl('start', 'klippee-moonraker.service')
             if not self.updater.agent_active():
@@ -726,6 +800,8 @@ class Fixes:
                 atomic_write(path, recovered[path], metadata)
         if plan['logs']:
             self.updater_command(['systemctl', 'daemon-reload'])
+            self.updater_command(['rsyslogd', '-N1'])
+            self.updater_command(['systemctl', 'restart', 'rsyslog.service'])
             self.updater_command(['systemctl', 'restart', 'systemd-journald'])
             if self.manifest['timer_enabled'] == 'enabled':
                 self.updater_command(['systemctl', 'enable', TIMER])

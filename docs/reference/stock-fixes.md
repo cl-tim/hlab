@@ -26,7 +26,7 @@ hlab printer firmware fixes --target printer.local --fast-probing --box-drying -
 | --- | --- | --- | --- |
 | Box output-clock guard | Skipped; Box additions are refused | Install and activate | Install and activate; live review confirmed the defect remains |
 | Hardened power-loss recovery | Skipped; base-image recovery entrypoint is not reviewed | Install manifest-bound runtime and checkpoint patch | Same; the vendor still supplies the legacy recovery builder |
-| Journal size/retention limits and archive cleanup timer | Apply only to the detected small Armbian ramlog layout | Apply to detected small Armbian ramlog layout | Same layout check; skip with a note on other layouts |
+| Journal/plain-log limits and cleanup timer | Apply only to the detected small Armbian ramlog layout | Apply to detected small Armbian ramlog layout | Same layout check; skip with a note on other layouts |
 | Box `is_tool_change` status shim | Skipped | Install and activate | Preserve an existing shim; do not add one because continued need is unproven |
 | Box motion-sensor polling | Refused | Optional `--box-motion-polling` | Optional mitigation for the unchanged Box IRQ path; a watchdog failure was not reproduced on 2.1.1 |
 | Remove runout-flag delays | Skipped with a note; no stock Box loop | Optional `--trim-runout-waits`; match only the reviewed PRINT_START loop | Same |
@@ -112,6 +112,31 @@ transaction, copies `recovery.tar.gz` to `PLAB_HOME/backups/qidi-fixes/`, and
 checks its SHA-256 before authorizing changes. It then stops Klipper, installs,
 restarts the host service and checks controllers and guard status. Repeat runs
 with the same options make no edits when everything is already current.
+
+PLR checkpointing waits through startup and probing commands whose nozzle target
+is below 150 C. These commands remain non-resumable without disabling checkpoints
+for the rest of the print. Returning to a cold target invalidates an earlier
+candidate. A subsequent new print can rearm a failed checkpoint writer only after
+a durable line-zero reset succeeds; pause/resume cannot clear a writer error.
+
+On the detected small Armbian ramlog layout, the cleanup timer also checks known
+plain-text logs in `/var/log` and `/var/log.hdd` every minute. Files above 1 MiB
+retain their newest complete lines within 512 KiB, preserving the inode, owner and
+permissions. This covers `syslog`, `daemon.log`, `kern.log`, `messages`, `debug`,
+`user.log` and their `.1` rotations. It does not edit authentication logs, compressed
+archives or printer logs. Concurrent appends can be lost during truncation, as
+with logrotate's copytruncate. Cleanup runs immediately during installation to
+recover space before restarting journald. Expired log contents cannot be restored
+by rollback.
+
+The log fix stops rsyslog from duplicating the QIDI screen client's known
+recovery-page message into `syslog` and `daemon.log`; the client's own rotating
+`qidi.log` remains available. On 1.8.2/2.1.1, a fresh burst of at least fifty
+recovery-page transitions in one second adds an explicit screen-client restart
+to the maintenance plan. Apply restarts only an already-active client, after
+Klipper is ready and idle, then requires fresh log output and a stable client
+within thirty seconds. This does not alter recovery markers or start a print.
+Normal page transitions do not trigger this action.
 
 `--fast-probing` updates recognized `[z_tilt]` and `[bed_mesh]` speeds in the
 active include graph to 300 mm/s, preserving positions, sample counts and

@@ -50,5 +50,11 @@ jobs:
           python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_box_drying.py' -v
           python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_usb_events.py' -v
           python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_save_variables_fast.py' -v
+          python3 -B -m unittest discover -s internal/printerlab/migration/tools/migration/tests -p 'test_log_limits.py' -v
+      - name: Power-loss checkpoint and installer regressions
+        run: |
+          python3 -m venv /tmp/hlab-plr-tests
+          /tmp/hlab-plr-tests/bin/python -m pip install -r internal/printerlab/migration/requirements-dev.txt
+          /tmp/hlab-plr-tests/bin/python -B -m pytest -q -p no:cacheprovider internal/printerlab/migration/tests/test_plr_hardening.py
       - name: Cross-compile
         run: make release

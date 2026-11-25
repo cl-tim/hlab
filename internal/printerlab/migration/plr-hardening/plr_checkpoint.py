@@ -627,7 +627,25 @@ class _CheckpointWriter(object):
             self.condition.notify_all()
         return not os.path.exists(self.checkpoint_path)
 
-    def flush(self, timeout=30.0):
+    def begin_session(self, identity):
+        # Only a new line-zero print may rearm a failed writer. Cancel delayed
+        # work, drain in-flight IO, then prove that a non-resumable reset is
+        # durable before clearing the previous session's error.
+        with self.condition:
+            self.lifecycle_epoch += 1
+            self.pending = None
+            self.condition.notify_all()
+        if not self.flush(ignore_error=True):
+            return False
+        if not self.commit_terminal(
+            "not_ready", 0, identity, reason="no durable print line yet"
+        ):
+            return False
+        with self.condition:
+            self.error = None
+        return True
+
+    def flush(self, timeout=30.0, ignore_error=False):
         deadline = time.monotonic() + float(timeout)
         with self.condition:
             while self.pending is not None or self.writing:
@@ -635,7 +653,7 @@ class _CheckpointWriter(object):
                 if remaining <= 0.0:
                     return False
                 self.condition.wait(remaining)
-            return self.error is None
+            return ignore_error or self.error is None
 
     def get_error(self):
         with self.condition:
@@ -654,6 +672,8 @@ class _CheckpointWriter(object):
                     if delay <= 0.0:
                         break
                     self.condition.wait(delay)
+                if self.pending is None:
+                    continue
                 job = self.pending
                 self.pending = None
                 self.writing = True
@@ -814,10 +834,18 @@ class CheckpointTracker(object):
 
     def _capture_runtime(self, completed_lines):
         eventtime = self.reactor.monotonic()
+        extruder = _status(self._lookup("extruder"), eventtime, "extruder")
+        target = _finite_number(
+            extruder.get("target"), "checkpoint heaters.extruder", 0.0, 400.0
+        )
+        # Startup homing/probing and end G-code intentionally turn off heat.
+        # These lines are not resumable, but they must not poison this print's
+        # writer. The recovery reader retains its strict 150..400 C gate.
+        if target < 150.0:
+            return None
         move_object = self._lookup("gcode_move")
         move = _status(move_object, eventtime, "gcode_move")
         toolhead = _status(self._lookup("toolhead"), eventtime, "toolhead")
-        extruder = _status(self._lookup("extruder"), eventtime, "extruder")
         bed = _status(self._lookup("heater_bed"), eventtime, "heater_bed")
         chamber = _status(
             self._lookup("heater_generic chamber"), eventtime, "heater_generic chamber"
@@ -883,9 +911,9 @@ class CheckpointTracker(object):
         return float(toolhead.mcu.estimated_print_time(eventtime))
 
     def _motion_scheduled(self, generation, completed_lines, runtime, move_end):
-        self.callback_pending = False
         if not self.active or generation != self.generation:
             return
+        self.callback_pending = False
         if completed_lines <= self.last_published_line:
             return
         try:
@@ -951,10 +979,6 @@ class CheckpointTracker(object):
             # to wait for a preceding terminal job and synchronously invalidate
             # stale recovery.  Pause/resume took the branch above and never
             # waits on eMMC durability.
-            if not self.writer.flush():
-                raise CheckpointError("checkpoint writer did not flush")
-            if self.writer.get_error() is not None:
-                raise CheckpointError("checkpoint writer previously failed")
             self.identity = identity
             if file_position != 0 or completed_lines != 0:
                 self._commit_sync(
@@ -972,9 +996,8 @@ class CheckpointTracker(object):
             # An active line-zero document is internally contradictory because
             # there is nothing to resume.  Publish an explicit non-resumable
             # state until a physically completed positive candidate exists.
-            self._commit_sync(
-                "not_ready", 0, reason="no durable print line yet"
-            )
+            if not self.writer.begin_session(identity):
+                raise CheckpointError("checkpoint writer could not reset for a new print")
             return True
         except Exception:
             self._disable_after_error("start")
@@ -997,6 +1020,16 @@ class CheckpointTracker(object):
             self.last_line = completed_lines
             if completed_lines % self.save_every_n_lines == 0:
                 runtime = self._capture_runtime(completed_lines)
+                if runtime is None:
+                    if self.last_published_line or self.callback_pending:
+                        self.generation += 1
+                        self.callback_pending = False
+                        self._commit_sync(
+                            "not_ready", completed_lines,
+                            reason="extruder target below resumable range",
+                        )
+                        self.last_published_line = 0
+                    return
                 self._schedule_physical_checkpoint(completed_lines, runtime)
         except Exception:
             self._disable_after_error("update")

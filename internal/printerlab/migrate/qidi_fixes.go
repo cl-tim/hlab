@@ -135,7 +135,7 @@ func (b *nativeBackend) qidiFixes() error {
 	if err != nil {
 		return err
 	}
-	names := []string{"tools/migration/update-qidi.py", "qidi-fixes/box_output_clock_guard.py", "qidi-fixes/box_status_compat.py", "qidi-fixes/usb_events.py", "qidi-fixes/box_drying.py", "qidi-fixes/save_variables_fast.py"}
+	names := []string{"tools/migration/update-qidi.py", "qidi-fixes/box_output_clock_guard.py", "qidi-fixes/box_status_compat.py", "qidi-fixes/usb_events.py", "qidi-fixes/box_drying.py", "qidi-fixes/save_variables_fast.py", "qidi-fixes/log_limits.py"}
 	for _, name := range plrAssets {
 		names = append(names, "plr-hardening/"+name)
 	}

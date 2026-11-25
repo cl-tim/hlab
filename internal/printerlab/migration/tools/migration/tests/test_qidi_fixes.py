@@ -79,7 +79,7 @@ timeout: 120
         self.updater.api.return_value = dict(objects=['box_output_clock_guard', 'box_status_compat'])
         asset_root = HELPER.parents[2]
         assets = dict((name, base64.b64encode((asset_root / name).read_bytes()).decode('ascii'))
-                      for name in ('qidi-fixes/box_output_clock_guard.py', 'qidi-fixes/box_status_compat.py', 'qidi-fixes/box_drying.py', 'qidi-fixes/save_variables_fast.py'))
+                      for name in ('qidi-fixes/box_output_clock_guard.py', 'qidi-fixes/box_status_compat.py', 'qidi-fixes/box_drying.py', 'qidi-fixes/save_variables_fast.py', 'qidi-fixes/log_limits.py'))
         self.options = dict(check_only=False, polling=False, assets=assets, transaction_id='a' * 32,
                             wait_seconds=5, phase='prepare')
         self.fix = fixes.Fixes(self.options, self.updater)
@@ -690,6 +690,90 @@ timeout: 120
         restore = next(index for index, event in enumerate(events) if event[0] == 'restore' and event[1] == str(self.printer))
         self.assertLess(disable, restore)
         self.assertNotIn(['systemctl', 'enable', fixes.TIMER], events)
+
+    def test_recovery_screen_probe_requires_a_fresh_sustained_known_loop(self):
+        path = self.home / 'printer_data/logs/qidi.log'
+        path.parent.mkdir(parents=True)
+        loop = b'[2026-11-25 20:33:30][info]page_to : page_id = 56\n'
+        self.assertFalse(self.fix.screen_recovery_loop())
+        for data, expected in ((loop * 80, True), (loop * 20, False),
+                               (loop * 80 + b'[info]other page\n', False),
+                               (loop.replace(b'56', b'55') * 80, False),
+                               (loop * 40 + loop.replace(b'20:33:30', b'20:34:00') * 40, False)):
+            path.write_bytes(data)
+            self.assertEqual(self.fix.screen_recovery_loop(), expected)
+        path.write_bytes(loop * 80)
+        os.utime(path, (0, 0))
+        self.assertFalse(self.fix.screen_recovery_loop())
+
+    def test_ramlog_and_screen_recovery_are_in_the_verified_transaction(self):
+        real_is_dir = Path.is_dir
+        files = {str(self.root / Path(path).name): content for path, content in fixes.LOG_FILES.items()}
+        helper = str(self.root / 'log_limits.py')
+        self.fix.screen_recovery_loop = Mock(return_value=True)
+        with patch.object(Path, 'is_dir', lambda path: str(path) == '/var/log.hdd/journal' or real_is_dir(path)), \
+                patch.object(fixes.os, 'statvfs', return_value=Mock(f_blocks=1024, f_frsize=4096)), \
+                patch.object(fixes, 'LOG_FILES', files), patch.object(fixes, 'LOG_SCRIPT', helper):
+            plan = self.prepare()
+            self.assertTrue(plan['screen_restart'])
+            self.assertIn(helper, plan['writes'])
+            self.assertIn('restart ' + fixes.SCREEN_SERVICE + ' to clear recovery-screen loop', self.fix.result['changes'])
+            # Simulate the screen's successful restart, leaving prepare/apply's
+            # initial loop evidence identical until the service is restarted.
+            def command(args):
+                if args == ['systemctl', 'restart', fixes.SCREEN_SERVICE]:
+                    self.fix.screen_recovery_loop.return_value = False
+            self.fix.updater_command.side_effect = command
+            with patch.object(self.fix, 'verify_screen_restart'):
+                self.fix.apply()
+            self.assertEqual(Path(helper).read_bytes(), base64.b64decode(self.options['assets']['qidi-fixes/log_limits.py']))
+            self.fix.updater_command.assert_any_call(['systemctl', 'start', fixes.LOG_SERVICE])
+            self.assertFalse(self.fix.plan()['changed'])
+            self.fix.options['rollback'] = str(self.fix.tx)
+            self.fix.rollback()
+            self.assertFalse(Path(helper).exists())
+            for path in files:
+                self.assertFalse(Path(path).exists())
+
+    def test_screen_restart_failure_is_not_reported_as_success(self):
+        self.fix.screen_recovery_loop = Mock(return_value=True)
+        self.prepare()
+        with patch.object(self.fix, 'verify_screen_restart', side_effect=fixes.FixError('screen still looping')), \
+                self.assertRaisesRegex(fixes.FixError, 'screen still looping'):
+            self.fix.apply()
+        self.assertFalse(self.fix.result['ok'])
+        self.assertEqual(self.fix.manifest['status'], 'applying')
+
+    def test_screen_restart_waits_for_new_client_output_and_stability(self):
+        before = (1, 2, 100, 100 * 10**9)
+        elapsed = [0]
+        def tick(_seconds):
+            elapsed[0] += 1
+        def stamp():
+            return before if elapsed[0] < 7 else (1, 2, 200, 107 * 10**9)
+        self.fix.screen_log_stamp = Mock(side_effect=stamp)
+        self.fix.screen_recovery_loop = Mock(return_value=False)
+        with patch.object(fixes.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+                patch.object(fixes.time, 'time', side_effect=lambda: 100 + elapsed[0]), \
+                patch.object(fixes.time, 'sleep', side_effect=tick):
+            self.fix.verify_screen_restart(before)
+        self.assertEqual(elapsed[0], 10)
+        self.assertEqual(self.fix.screen_recovery_loop.call_count, 4)
+
+    def test_screen_restart_rejects_missing_new_output_and_persistent_loop(self):
+        before = (1, 2, 100, 100 * 10**9)
+        for looping in (False, True):
+            elapsed = [0]
+            def tick(_seconds):
+                elapsed[0] += 1
+            self.fix.screen_log_stamp = Mock(side_effect=lambda: (1, 2, 200, (100 + elapsed[0]) * 10**9) if looping else before)
+            self.fix.screen_recovery_loop = Mock(return_value=True)
+            with patch.object(fixes.time, 'monotonic', side_effect=lambda: elapsed[0]), \
+                    patch.object(fixes.time, 'time', side_effect=lambda: 100 + elapsed[0]), \
+                    patch.object(fixes.time, 'sleep', side_effect=tick), \
+                    self.assertRaisesRegex(fixes.FixError, 'stable fresh output'):
+                self.fix.verify_screen_restart(before)
+            self.assertEqual(elapsed[0], 30)
 
     def test_optional_missing_timer_is_inactive_but_systemctl_failure_is_not_ignored(self):
         for code in (0, 3, 4):

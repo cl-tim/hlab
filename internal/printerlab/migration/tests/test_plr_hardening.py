@@ -357,6 +357,101 @@ def test_line_zero_checkpoint_is_explicitly_not_resumable(tmp_path: Path) -> Non
         plr_checkpoint.load_checkpoint(str(checkpoint))
 
 
+def test_cold_startup_defers_checkpoint_until_extruder_target_is_resumable(tmp_path: Path) -> None:
+    source = tmp_path / "job.gcode"
+    source.write_text("G90\n" * 100)
+    checkpoint = tmp_path / "checkpoint.json"
+    printer = FakePrinter()
+    printer.objects["extruder"].status["target"] = 0.0
+    tracker = plr_checkpoint.CheckpointTracker(
+        FakeConfig(printer), str(tmp_path), 50,
+        checkpoint_path=str(checkpoint), record_path=str(tmp_path / "record"),
+    )
+    with source.open("rb") as stream:
+        assert tracker.start(stream, 0, 0)
+    for line in range(1, 51):
+        tracker.advance(line)
+    assert tracker.active
+    assert tracker.writer.get_error() is None
+    assert json.loads(checkpoint.read_text())["state"] == "not_ready"
+    assert not printer.toolhead.callbacks
+
+    printer.objects["extruder"].status["target"] = 220.0
+    for line in range(51, 101):
+        tracker.advance(line)
+    printer.toolhead.fire(99.0)
+    assert tracker.writer.flush(2.0)
+    assert plr_checkpoint.load_checkpoint(str(checkpoint))["line"] == 100
+
+
+def test_new_print_rearms_failed_checkpoint_writer_only_after_durable_reset(tmp_path: Path) -> None:
+    source = tmp_path / "job.gcode"
+    source.write_text("G90\n" * 100)
+    printer = FakePrinter()
+    tracker = plr_checkpoint.CheckpointTracker(
+        FakeConfig(printer), str(tmp_path), 50,
+        checkpoint_path=str(tmp_path / "checkpoint.json"),
+        record_path=str(tmp_path / "record"),
+    )
+    with source.open("rb") as stream:
+        assert tracker.start(stream, 0, 0)
+    tracker.writer.abort("preceding print failed")
+    tracker.reset()
+    with source.open("rb") as stream:
+        assert tracker.start(stream, 0, 0)
+    assert tracker.writer.get_error() is None
+    for line in range(1, 51):
+        tracker.advance(line)
+    printer.toolhead.fire(99.0)
+    assert tracker.writer.flush(2.0)
+    assert plr_checkpoint.load_checkpoint(tracker.checkpoint_path)["line"] == 50
+
+
+def test_cold_transition_invalidates_pending_checkpoint_without_resurrection(tmp_path: Path) -> None:
+    source = tmp_path / "job.gcode"
+    source.write_text("G90\n" * 150)
+    checkpoint = tmp_path / "checkpoint.json"
+    printer = FakePrinter()
+    tracker = plr_checkpoint.CheckpointTracker(
+        FakeConfig(printer), str(tmp_path), 50,
+        checkpoint_path=str(checkpoint), record_path=str(tmp_path / "record"),
+    )
+    with source.open("rb") as stream:
+        assert tracker.start(stream, 0, 0)
+    for line in range(1, 51):
+        tracker.advance(line)
+    assert tracker.callback_pending
+    printer.objects["extruder"].status["target"] = 0.0
+    for line in range(51, 101):
+        tracker.advance(line)
+    assert json.loads(checkpoint.read_text())["state"] == "not_ready"
+    assert not tracker.callback_pending
+    printer.objects["extruder"].status["target"] = 220.0
+    for line in range(101, 151):
+        tracker.advance(line)
+    printer.toolhead.fire(99.0)  # The old warm candidate cannot revive recovery.
+    assert tracker.callback_pending
+    assert json.loads(checkpoint.read_text())["state"] == "not_ready"
+    printer.toolhead.fire(99.0)
+    assert tracker.writer.flush(2.0)
+    assert plr_checkpoint.load_checkpoint(str(checkpoint))["line"] == 150
+
+
+def test_new_session_does_not_clear_a_persistent_io_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    checkpoint = tmp_path / "checkpoint.json"
+    writer = plr_checkpoint._CheckpointWriter(str(tmp_path / "record"), str(checkpoint))
+    writer.abort("preceding print failed")
+    def fail_write(*_args: object) -> None:
+        raise OSError("disk still unavailable")
+    monkeypatch.setattr(plr_checkpoint, "_write_checkpoint_files", fail_write)
+    assert not writer.begin_session(identity())
+    assert writer.get_error() is not None
+    assert not writer.enqueue("active", 50, identity(), runtime=runtime_snapshot(50))
+    assert not checkpoint.exists()
+
+
 def test_checkpoint_is_published_only_after_motion_time(tmp_path: Path) -> None:
     root = tmp_path / "gcodes"
     root.mkdir()
